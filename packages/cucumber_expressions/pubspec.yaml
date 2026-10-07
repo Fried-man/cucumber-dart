@@ -1,0 +1,37 @@
+# Vendored from Fried-man/cucumber-expressions (branch feature/dart_implementation)
+# at commit 9b047a995c1db17616bbde9333c5f97e180b0351. Local modifications are
+# listed in docs/decisions/0006-vendored-cucumber-expressions.md.
+name: cucumber_expressions
+description: >-
+  Cucumber Expressions for Dart. A simpler alternative to Regular Expressions
+  with a more intuitive syntax, plus parameter type matching and expression
+  generation.
+version: 0.0.1
+homepage: https://github.com/cucumber/cucumber-expressions
+repository: https://github.com/cucumber/cucumber-expressions
+issue_tracker: https://github.com/cucumber/cucumber-expressions/issues
+documentation: https://github.com/cucumber/cucumber-expressions/tree/main/dart
+
+funding:
+  - https://opencollective.com/cucumber
+  - https://github.com/sponsors/cucumber
+
+publish_to: none
+
+environment:
+  # Lowest version that supports `resolution: workspace`. Staying below 3.7
+  # keeps `dart format` on the upstream (pre-tall) style.
+  sdk: ^3.5.0
+
+resolution: workspace
+
+topics:
+  - cucumber
+  - expressions
+  - testing
+  - parser
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.31.0
+  yaml: ^3.1.2

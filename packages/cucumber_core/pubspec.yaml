@@ -1,0 +1,29 @@
+name: cucumber_core
+description: >-
+  Runner-agnostic Cucumber engine for Dart: the glue API (steps, hooks,
+  parameter types, data tables, World) and the engine that executes Gherkin
+  pickles and emits Cucumber Messages. Run features with package:cucumber.
+version: 0.0.1
+repository: https://github.com/Fried-man/cucumber-dart
+issue_tracker: https://github.com/Fried-man/cucumber-dart/issues
+# Not publishable until its workspace dependencies are published (ADR-0005).
+publish_to: none
+
+topics:
+  - cucumber
+  - bdd
+  - gherkin
+  - testing
+
+environment:
+  sdk: ^3.8.0
+
+resolution: workspace
+
+dependencies:
+  cucumber_expressions: ^0.0.1
+  cucumber_gherkin: ^42.0.1
+  cucumber_messages: ^34.2.1
+
+dev_dependencies:
+  test: ^1.31.0

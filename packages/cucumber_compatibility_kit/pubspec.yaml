@@ -1,0 +1,19 @@
+name: cucumber_compatibility_kit
+description: >-
+  Samples from the Cucumber Compatibility Kit (feature files, expected Cucumber
+  Messages and reference step definitions) used to validate Cucumber for Dart.
+# Versioned in lockstep with the upstream @cucumber/compatibility-kit release
+# whose samples are synced into features/ (tool/sync.dart).
+version: 31.0.0
+repository: https://github.com/Fried-man/cucumber-dart
+issue_tracker: https://github.com/Fried-man/cucumber-dart/issues
+# In-repo port of cucumber/compatibility-kit; publish upstream instead (ADR-0005).
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+resolution: workspace
+
+dev_dependencies:
+  crypto: ^3.0.6

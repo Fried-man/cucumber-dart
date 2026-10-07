@@ -1,0 +1,16 @@
+# Workspace root for cucumber-dart. Not published.
+# See docs/design.md (§3.1) and docs/decisions/0005-monorepo-and-in-repo-ports.md.
+name: cucumber_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+workspace:
+  - packages/cucumber_core
+  - packages/cucumber
+  - packages/cucumber_expressions
+  - packages/cucumber_compatibility_kit
+
+dev_dependencies:
+  lints: ^6.0.0

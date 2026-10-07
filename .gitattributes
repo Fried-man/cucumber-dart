@@ -1,0 +1,17 @@
+# Store and check out text files with LF line endings on every platform.
+# Gherkin sources and expected NDJSON are compared byte-for-byte, so CRLF
+# conversion on Windows would break fixtures.
+* text=auto eol=lf
+
+# Binary assets.
+*.gif binary
+*.jpeg binary
+*.jpg binary
+*.pdf binary
+*.png binary
+
+# Compatibility kit samples are synced byte-for-byte from the pinned upstream
+# npm tarball (packages/cucumber_compatibility_kit/tool/sync.dart). Expected
+# messages embed exact file bytes (e.g. base64 attachments), so git must never
+# rewrite them.
+packages/cucumber_compatibility_kit/features/** -text
