@@ -16,7 +16,8 @@ Every official runner depends on shared Cucumber libraries:
 - pretty-formatter
 - compatibility-kit
 
-None of these exists in Dart yet. The cucumber-expressions Dart port exists only on a fork branch. pub.dev rejects
+None of these exists in Dart yet. (The cucumber-expressions Dart port was vendored at first and is now the hosted
+`cucumber_expressions` package; see ADR-0020.) pub.dev rejects
 packages that have path dependencies. Publishing ports under the names the Cucumber organisation will use would
 squat those names.
 

@@ -9,7 +9,6 @@ environment:
 workspace:
   - packages/cucumber_core
   - packages/cucumber
-  - packages/cucumber_expressions
   - packages/cucumber_compatibility_kit
 
 dev_dependencies:

@@ -12,7 +12,7 @@
 | cucumber-ruby | Runs in the World |
 | cucumber-jvm | Context-free, synchronous methods |
 
-In the vendored expressions library, a transformer is a synchronous `T Function(List<String?>)` with no context.
+In the `cucumber_expressions` library, a transformer is a synchronous `T Function(List<String?>)` with no context.
 
 ## Decision
 

@@ -1,6 +1,6 @@
 # ADR-0006: Vendor the cucumber-expressions Dart port and fix it here
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0020](0020-hosted-cucumber-expressions.md)
 - **Date:** 2026-10-06
 - **Design:** §11
 

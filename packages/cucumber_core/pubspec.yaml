@@ -21,7 +21,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  cucumber_expressions: ^0.0.1
+  cucumber_expressions: ^20.1.0
   cucumber_gherkin: ^42.0.1
   cucumber_messages: ^34.2.1
 

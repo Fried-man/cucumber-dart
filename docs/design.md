@@ -1,7 +1,7 @@
 # cucumber-dart design
 
 - **Status:** Draft. The direction is agreed. Items marked *(Proposed)* are still open for review.
-- **Last updated:** 2026-10-06
+- **Last updated:** 2026-10-15
 - **Decision log:** [`docs/decisions/`](decisions/README.md)
 
 This document describes how cucumber-dart becomes a production-grade Cucumber implementation for Dart that
@@ -10,7 +10,7 @@ components that already have Dart ports:
 
 - [`cucumber_messages`][messages]
 - [`cucumber_gherkin`][gherkin]
-- the cucumber-expressions Dart port, vendored into this repository
+- [`cucumber_expressions`][expressions]
 
 ---
 
@@ -99,7 +99,6 @@ cucumber-dart/
 └─ packages/
    ├─ cucumber_core/                 runner-agnostic engine + public glue API (pure Dart)
    ├─ cucumber/                      dart test host, discovery, config, outputs, merge CLI; re-exports the core API
-   ├─ cucumber_expressions/          vendored fork of the Dart port (ADR-0006)
    ├─ cucumber_compatibility_kit/    CCK samples synced from npm + helpers (future compatibility-kit/dart)
    ├─ cucumber_html_formatter/       [M5] Dart wrapper around the prebuilt @cucumber/html-formatter assets
    ├─ cucumber_ci_environment/       [M5] port of cucumber/ci-environment (meta.ci)
@@ -111,7 +110,7 @@ cucumber-dart/
 ```
 cucumber ─────► cucumber_core ─────► cucumber_gherkin (pub.dev)
    │                 │          └──► cucumber_messages (pub.dev)
-   │                 └─────────────► cucumber_expressions (workspace, vendored)
+   │                 └─────────────► cucumber_expressions (pub.dev, ADR-0020)
    ├──► test (package:test)
    └──► cucumber_html_formatter, cucumber_ci_environment, cucumber_query (workspace)
 
@@ -892,7 +891,6 @@ The following are planned after v1:
 
 | Package | Upstream | v1? | Shared test data used for conformance |
 |---|---|---|---|
-| `cucumber_expressions` | cucumber/cucumber-expressions (`dart/`, your fork) | yes | `testdata/` (vendored) |
 | interim tag expressions (private, in `cucumber_core`) | cucumber/tag-expressions | yes | `parsing.yml`, `evaluations.yml`, `errors.yml` |
 | `cucumber_compatibility_kit` | cucumber/compatibility-kit | yes | npm `@cucumber/compatibility-kit` 31.0.0 |
 | `cucumber_html_formatter` | cucumber/html-formatter | yes | Asset sync from npm; smoke tests |
@@ -943,11 +941,13 @@ than a rewrite.
 
 ---
 
-## 11. Changes needed in the vendored `cucumber_expressions` (ADR-0006)
+## 11. Gaps in the hosted `cucumber_expressions` (ADR-0020)
+
+The runner uses the published [`cucumber_expressions`][expressions] package (20.1.0). It lacks three things the
+runner needs. Each is worked around in `cucumber_core` or contributed to cucumber/cucumber-expressions.
 
 1. **Offsets for every group.**
-   - `Group.start` (and `end`) are currently only set on the root group, because `RegExpMatch` exposes no group
-     offsets.
+   - `Group.start` (and `end`) are only set on the root group, because `RegExpMatch` exposes no group offsets.
    - The CCK `testCase.stepMatchArgumentsLists` needs `start` for every argument and nested group, e.g.
      `{flight}` → `LHR`@0, `CDG`@4.
    - Plan: `TreeRegexp` rewrites the pattern so that every top-level sibling and every alternative is captured, and
@@ -965,8 +965,8 @@ than a rewrite.
      types) before any match happens.
    - This enables the arity and type checks when glue loads.
 
-Each change has tests, keeps the upstream API compatible, and is tracked for back-porting to your fork and the
-official repository.
+Upstream contributions come with conformance fixtures and keep the API compatible. Until they are released, any
+workaround lives in `cucumber_core`, not in a fork.
 
 **Upstream wishlist** for the other Dart ports:
 - `cucumber_gherkin`: Markdown support and a default-dialect option.
@@ -1004,8 +1004,8 @@ official repository.
 
 | Milestone | Scope | Exit criteria |
 |---|---|---|
-| **M0 Scaffold** | Workspace, package skeletons, vendored `cucumber_expressions` with its conformance tests, CCK sample sync tool, `.gitattributes`, lints, CI | `dart analyze` clean; vendored tests green; samples synced and drift-checked |
-| **M1 Foundations** | Expressions changes (§11); interim tag expressions; ID generators; glue value types with source references; arity and type checking | Unit tests; tag-expression and expressions conformance suites green |
+| **M0 Scaffold** | Workspace, package skeletons, hosted `cucumber_expressions` dependency, CCK sample sync tool, `.gitattributes`, lints, CI | `dart analyze` clean; samples synced and drift-checked |
+| **M1 Foundations** | Expressions gaps (§11), upstream or in `cucumber_core`; interim tag expressions; ID generators; glue value types with source references; arity and type checking | Unit tests; tag-expression conformance suite green |
 | **M2 Engine** | `SupportCodeLibrary`, source loading, filtering, ordering, assembly, `TestCaseRunner` (§5), messages (§7), snippets, World, Scenario, attachments, basic tables and doc strings; `SerialHost`; CCK harness | ≥ 40 CCK samples passing through `SerialHost` |
 | **M3 `dart test` host** | `cucumber()`, `CucumberOptions`, `CucumberSuite`, discovery, `path:line`, configuration (YAML profiles + env), test tree, names, locations, tag mapping, outcome mapping, NDJSON plugin | End-to-end example project; CCK subset green through `dart test` |
 | **M4 Typed tables** | `DataTableType` and `DocStringType` registries, conversions, `diff` | Ported cucumber-jvm `datatable` behaviour tests |
@@ -1014,7 +1014,7 @@ official repository.
 | **M7** | `cucumber_flutter`: widget tests | Example Flutter app |
 | **M8** | `cucumber_builder`: codegen | Example; compile-time checks |
 | **M9** | `integration_test` on device | Device run producing reports |
-| **M10 Upstreaming** | Expressions PR; tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
+| **M10 Upstreaming** | Remaining expressions PRs (§11); tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
 
 ---
 
@@ -1022,13 +1022,13 @@ official repository.
 
 | Topic | Notes |
 |---|---|
-| Group offsets in Dart | Rewriting regexes to recover offsets must handle quantifiers, alternation, back-references and lookarounds. It is fully covered by conformance fixtures and the CCK. |
+| Group offsets in Dart | The hosted `cucumber_expressions` only reports root-group offsets (§11). Rewriting regexes to recover offsets must handle quantifiers, alternation, back-references and lookarounds, and must be covered by conformance fixtures and the CCK. |
 | Top-level `log` | Clashes with `dart:math`. Mitigation: `hide log` or a prefix. Could be renamed before 1.0 if it proves annoying. |
 | Undeclared tag warnings | `package:test` warns about tags missing from `dart_test.yaml`. Options: document it, generate the list, or turn mapping off. |
 | Report correlation under `flutter test` | Each test file runs in its own process, so the process id is not shared. `CUCUMBER_RUN_ID` is required there (revisit in M7). |
 | Deterministic static IDs | An unusual choice (ADR-0018). It needs validation against the CCK and the HTML formatter. |
 | World type name in snippets | `Type.toString()` can be minified on web and AOT. Snippets are produced in JIT test runs, so this is acceptable. |
-| Publishing | `cucumber` cannot be published to pub.dev until `cucumber_expressions` and the other ported packages are published (ADR-0005). |
+| Publishing | `cucumber` cannot be published to pub.dev until the ported packages it depends on are published (ADR-0005). `cucumber_expressions` already is (ADR-0020). |
 | Official adoption | Talk to the Cucumber maintainers early (Discord `#committers`). The org's contribution policy requires disclosing any AI assistance. |
 
 [cucumber-js]: https://github.com/cucumber/cucumber-js
@@ -1037,4 +1037,5 @@ official repository.
 [godog]: https://github.com/cucumber/godog
 [messages]: https://github.com/cucumber/messages
 [gherkin]: https://github.com/cucumber/gherkin
+[expressions]: https://pub.dev/packages/cucumber_expressions
 [cck]: https://github.com/cucumber/compatibility-kit
