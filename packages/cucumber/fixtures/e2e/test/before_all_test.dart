@@ -8,5 +8,5 @@ void main() => cucumber(
     BeforeAll(() => throw StateError('database is down'), name: 'database'),
     Given('a step passes', () {}),
   ],
-  plugins: ['message:build/cucumber/before_all.ndjson'],
+  plugins: ['message:build/cucumber/before_all.ndjson', 'summary'],
 );

@@ -33,7 +33,8 @@ final class CucumberOptions {
   /// - [order]: `defined` (default), `reverse`, `random` or `random:<seed>`.
   /// - [dryRun]: report the steps without running any user code.
   /// - [worldParameters]: JSON-like values exposed as `World.parameters`.
-  /// - [plugins]: `'message:<path>'` (NDJSON) or [Plugin] instances.
+  /// - [plugins]: `'message:<path>'` (NDJSON), `'summary'` (printed when the
+  ///   suite ends) or [Plugin] instances.
   /// - [suiteName]: the name of this suite's report part. Default: the test
   ///   file name.
   /// - [profile]: `cucumber.yaml` profile(s) to apply, comma separated.
@@ -94,7 +95,8 @@ final class CucumberOptions {
   /// JSON-like values exposed as `World.parameters`.
   final Map<String, Object?>? worldParameters;
 
-  /// Plugin specifications (`'message:<path>'`) and [Plugin] instances.
+  /// Plugin specifications (`'message:<path>'`, `'summary'`) and [Plugin]
+  /// instances.
   final List<Object>? plugins;
 
   /// The name of this suite's report part.

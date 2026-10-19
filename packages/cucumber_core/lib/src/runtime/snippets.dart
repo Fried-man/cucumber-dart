@@ -44,13 +44,22 @@ final class SnippetGenerator {
 
   /// The snippet for [step] shown to users: the first generated expression as
   /// code, the others as comments.
-  String generate(messages.PickleStep step) {
-    final heads = _heads(step);
+  String generate(messages.PickleStep step) => present(generateAll(step));
+
+  /// Combines the snippets of one step (as in a `suggestion` message, one per
+  /// expression) into the snippet shown to users: the first as code, and the
+  /// first line of each other as a comment (design §7.5).
+  ///
+  /// Returns an empty string when [snippets] is empty.
+  static String present(List<String> snippets) {
+    if (snippets.isEmpty) return '';
+    final alternatives = [
+      for (final snippet in snippets.skip(1)) '// ${snippet.split('\n').first}',
+    ];
     return [
-      heads.first,
-      ..._body,
-      if (heads.length > 1) '// Or use one of these expressions:',
-      for (final head in heads.skip(1)) '// $head',
+      snippets.first,
+      if (alternatives.isNotEmpty) '// Or use one of these expressions:',
+      ...alternatives,
     ].join('\n');
   }
 

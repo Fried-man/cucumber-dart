@@ -4,6 +4,7 @@ default:
   tags: not @wip
   plugins:
     - message:build/cucumber/messages.ndjson
+    - summary
 
 wip:
   tags: '@wip'

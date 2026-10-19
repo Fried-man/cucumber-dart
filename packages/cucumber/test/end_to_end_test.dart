@@ -301,6 +301,92 @@ void main() {
       });
     });
 
+    test('prints the summary when each suite ends', () {
+      String summaryOf(String file) {
+        final teardowns = [
+          for (final t in run.tests.values)
+            if (t.name == '(tearDownAll)' &&
+                p.url.basename(t.suite.replaceAll(r'\', '/')) == file)
+              t,
+        ];
+        expect(teardowns, hasLength(1), reason: run.describe());
+        return teardowns.single.prints.join('\n');
+      }
+
+      final duration = RegExp(
+        r'^\d+m\d\d\.\d{3}s \(executing steps: \d+m\d\d\.\d{3}s\)$',
+        multiLine: true,
+      );
+      final summary = summaryOf('cucumber_test.dart');
+      expect(
+        summary,
+        allOf([
+          startsWith(
+            'Failures:\n\n'
+            '1) Scenario: Shop - failing (attempt 2) # '
+            'features/shop.feature:12\n'
+            '   PASSED  Given a shop # features/shop.feature:6\n',
+          ),
+          contains(
+            '   FAILED  When a step fails with "boom" # '
+            'features/shop.feature:14\n'
+            '             Bad state: boom\n',
+          ),
+          contains('2) Scenario: Shop - pending # features/shop.feature:17\n'),
+          contains(
+            '3) Scenario: Shop - undefined # features/shop.feature:20\n',
+          ),
+          contains(
+            '4) Scenario: Shop - ambiguous # features/shop.feature:24\n',
+          ),
+          contains(
+            'Warnings:\n\n'
+            '1) Scenario: Shop - failing (attempt 1, retried) # '
+            'features/shop.feature:12\n',
+          ),
+          contains('2) Scenario: Shop - skipped # features/shop.feature:28\n'),
+          contains(
+            '3) Scenario: Shop - flaky (attempt 1, retried) # '
+            'features/shop.feature:31\n',
+          ),
+          contains(
+            '\n13 scenarios (1 failed, 1 ambiguous, 1 undefined, 1 pending, '
+            '1 skipped, 8 passed)\n'
+            '27 steps (1 failed, 1 ambiguous, 1 undefined, 1 pending, '
+            '2 skipped, 21 passed)\n',
+          ),
+          matches(duration),
+          endsWith(
+            'You can implement missing steps with the snippets below:\n\n'
+            "Given('an undefined step with {int} cukes', "
+            '(ShopWorld world, int int1) {\n'
+            '  // Write code here that turns the phrase above into concrete '
+            'actions\n'
+            '  throw PendingException();\n'
+            '}),\n'
+            '// Or use one of these expressions:\n'
+            "// Given('an undefined step with {float} cukes', "
+            '(ShopWorld world, double float1) {',
+          ),
+        ]),
+      );
+      expect(summary, isNot(contains('Shop passing')));
+
+      expect(
+        summaryOf('before_all_test.dart'),
+        allOf([
+          startsWith(
+            'Failures:\n\n'
+            '1) BeforeAll hook "database" (failed) # '
+            'test/before_all_test.dart:',
+          ),
+          contains('     Bad state: database is down\n'),
+          contains('\n0 scenarios\n0 steps\n'),
+          matches(duration),
+        ]),
+      );
+    });
+
     test('delivers the messages to custom plugins', () {
       final counts =
           jsonDecode(File(_build('counts.json')).readAsStringSync())
@@ -359,6 +445,17 @@ void main() {
     final run = await runDartTest(example);
     expect(run.exitCode, 0, reason: run.describe());
     expect(run.featureTests, hasLength(6));
+    // cucumber.yaml adds the summary plugin.
+    final summary = [
+      for (final t in run.tests.values)
+        if (t.name == '(tearDownAll)') ...t.prints,
+    ].join('\n');
+    expect(summary, startsWith('6 scenarios (6 passed)\n'));
+    expect(
+      summary,
+      isNot(contains('Failures:')),
+      reason: 'a passing run is only counts and the duration',
+    );
     expect(
       File(
         p.join(example, 'build', 'cucumber', 'messages.ndjson'),

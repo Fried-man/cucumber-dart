@@ -851,11 +851,23 @@ abstract interface class Plugin {
   - It embeds the prebuilt assets of `@cucumber/html-formatter` (`index.mustache`, `main.js`, `main.css`,
     `icon.url`, `main.js.LICENSE.txt`). They are pinned and synced from npm, and compiled into Dart constants.
   - It streams the messages as JSON with `<` escaped as `\x3C`, which is what the Java, Ruby and .NET wrappers do.
-- **Summary and snippets:** printed at the end of the suite.
-  - Example: `5 scenarios (1 failed, 1 undefined, 3 passed)` and `23 steps (…)`.
-  - Non-passing scenarios are listed with their locations.
-  - The de-duplicated Dart snippets for undefined steps are printed.
-  - The summary is computed from messages, and will use `cucumber_query` (M5).
+- **Summary and snippets (`summary`):** printed when the suite ends (from `tearDownAll`, so the test reporter
+  shows it). It follows cucumber-js's summary formatter, in this order:
+  - undefined parameter types;
+  - `Failures:` everything that fails the run (§5.7): final attempts that ended FAILED, AMBIGUOUS, UNDEFINED or
+    PENDING, and failed `BeforeAll`/`AfterAll` hooks. cucumber-js lists PENDING as a warning; we are strict-only;
+  - `Warnings:` the other non-passing scenarios: attempts that will be retried (`(attempt 1, retried)`) and final
+    attempts that ended SKIPPED;
+  - each listed scenario has its long `cucumber_query` name, its `uri:line`, its steps with their statuses and the
+    messages of non-passing ones, and its non-passing hooks;
+  - `5 scenarios (1 failed, 1 undefined, 3 passed)` and `23 steps (…)`: final attempts only, pickle steps only
+    (not hooks), statuses from the most to the least severe;
+  - `0m01.234s (executing steps: 0m00.567s)`: the run, then the sum of all step durations;
+  - `You can implement missing steps with the snippets below:` (cucumber-jvm's wording) and the de-duplicated
+    Dart snippets, taken from the `suggestion` messages and presented as in §7.5.
+
+  `formatSummary(Query)` (and `formatSummaryOf(envelopes)`) is a pure function of the messages, built on
+  `cucumber_query`, so the report merge can reuse it (§8.4). A suite that never starts its run prints nothing.
 
 ### 8.3 Later outputs
 
@@ -1054,8 +1066,10 @@ is implemented in `package:cucumber` (entrypoint, configuration, discovery, `pac
 Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and 46 CCK
 samples pass through the real host (`fixtures/cck`); `empty` is left out because it declares no tests, so nothing
 is written (§6). M5 (reports) is in progress: `cucumber_ci_environment` (sets `meta.ci` in the `dart test` host) and
-`cucumber_query` are implemented, and their upstream conformance suites are green (§9). The summary, the HTML
-formatter and report merging are next.
+`cucumber_query` are implemented, and their upstream conformance suites are green (§9). The `summary` plugin (§8.2)
+is implemented on `cucumber_query`: unit tests cover its formatter (including retry, undefined, ambiguous, pending,
+an empty run and every CCK sample's messages), and the end-to-end tests check what it prints through `dart test`.
+The HTML formatter and report merging are next.
 
 ---
 

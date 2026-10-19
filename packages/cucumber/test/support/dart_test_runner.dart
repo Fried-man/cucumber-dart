@@ -69,14 +69,23 @@ final class DartTestRun {
   /// Tests by ID, in start order.
   final Map<int, ReportedTest> tests = {};
 
+  /// Suite paths (such as `test/cucumber_test.dart`) by suite ID.
+  final Map<int, String> suites = {};
+
   void _event(Map<String, Object?> event) {
     switch (event['type']) {
+      case 'suite':
+        final suite = event['suite']! as Map<String, Object?>;
+        suites[suite['id']! as int] = suite['path']! as String;
       case 'group':
         final group = event['group']! as Map<String, Object?>;
         groups[group['id']! as int] = ReportedGroup(group);
       case 'testStart':
         final test = event['test']! as Map<String, Object?>;
-        tests[test['id']! as int] = ReportedTest(test);
+        tests[test['id']! as int] = ReportedTest(
+          test,
+          suites[test['suiteID']] ?? '',
+        );
       case 'testDone':
         final test = tests[event['testID']! as int]!;
         test
@@ -148,7 +157,7 @@ final class ReportedGroup {
 
 /// A test reported by `package:test`.
 final class ReportedTest {
-  ReportedTest(Map<String, Object?> json)
+  ReportedTest(Map<String, Object?> json, this.suite)
     : name = json['name']! as String,
       url = json['url'] as String?,
       line = json['line'] as int?,
@@ -156,6 +165,9 @@ final class ReportedTest {
 
   /// The full name.
   final String name;
+
+  /// The path of the test file, such as `test/cucumber_test.dart`.
+  final String suite;
 
   /// The location.
   final String? url;

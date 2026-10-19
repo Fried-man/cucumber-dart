@@ -5,6 +5,7 @@ import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 import 'package:path/path.dart' as p;
 
 import 'configuration.dart';
+import 'summary.dart';
 
 /// Writes every message as one line of JSON (NDJSON), the canonical Cucumber
 /// Messages stream (design §8.2). Its plugin specification is
@@ -48,10 +49,10 @@ final class NdjsonPlugin implements Plugin {
 
 /// The plugin specifications that can be used in code, `cucumber.yaml` and
 /// `CUCUMBER_PLUGIN`.
-const String pluginSpecifications = 'message:<path>';
+const String pluginSpecifications = 'message:<path>, summary';
 
 /// Creates the plugins for [specs] (design §8.1): `message:<path>` strings
-/// (paths relative to [packageRoot]) and [Plugin] instances.
+/// (paths relative to [packageRoot]), `summary`, and [Plugin] instances.
 ///
 /// Throws a [CucumberConfigurationException] for anything else.
 List<Plugin> createPlugins(List<Object> specs, {required String packageRoot}) {
@@ -81,6 +82,14 @@ Plugin _fromSpecification(String spec, String packageRoot) {
         );
       }
       return NdjsonPlugin(p.normalize(p.join(packageRoot, argument)));
+    case 'summary':
+      if (colon >= 0) {
+        throw CucumberConfigurationException(
+          'Plugin "$spec" takes no argument: the summary is printed when the '
+          'suite ends.',
+        );
+      }
+      return SummaryPlugin();
     default:
       throw CucumberConfigurationException(
         'Unknown plugin "$spec". Available: $pluginSpecifications. Custom '

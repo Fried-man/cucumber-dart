@@ -3,6 +3,7 @@ import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:cucumber/cucumber.dart';
+import 'package:cucumber/src/configuration.dart';
 import 'package:cucumber/src/platform.dart';
 import 'package:cucumber/src/plugins.dart';
 import 'package:cucumber_core/engine.dart';
@@ -37,6 +38,47 @@ void main() {
       expect(plugins[2], same(custom));
     });
 
+    test('creates the summary plugin', () {
+      final plugins = createPlugins([
+        'summary',
+        ' summary ',
+      ], packageRoot: root.path);
+      expect(plugins, everyElement(isA<SummaryPlugin>()));
+      expect(plugins, hasLength(2));
+    });
+
+    test('takes summary from code, cucumber.yaml and CUCUMBER_PLUGIN', () {
+      List<Plugin> plugins(
+        CucumberOptions code, [
+        Map<String, String> environment = const {},
+      ]) => createPlugins(
+        resolveConfiguration(
+          code,
+          packageRoot: root.path,
+          environment: environment,
+        ).plugins,
+        packageRoot: root.path,
+      );
+      String describe(List<Plugin> plugins) => plugins.join(', ');
+
+      expect(
+        describe(plugins(CucumberOptions(plugins: ['summary']))),
+        'summary',
+      );
+      File(
+        p.join(root.path, 'cucumber.yaml'),
+      ).writeAsStringSync('default:\n  plugins:\n    - summary\n');
+      expect(describe(plugins(CucumberOptions())), 'summary');
+      expect(
+        describe(
+          plugins(CucumberOptions(), {
+            'CUCUMBER_PLUGIN': 'summary,message:out.ndjson',
+          }),
+        ),
+        'summary, message:${p.join(root.path, 'out.ndjson')}',
+      );
+    });
+
     test('rejects unknown plugins', () {
       Matcher rejects(Object message) => throwsA(
         isA<CucumberConfigurationException>().having(
@@ -50,6 +92,7 @@ void main() {
 
       expect(() => create('message'), rejects(contains('needs an output')));
       expect(() => create('message:'), rejects(contains('needs an output')));
+      expect(() => create('summary:x'), rejects(contains('no argument')));
       expect(() => create('html:r.html'), rejects(contains('Unknown plugin')));
       expect(() => create(42), rejects(contains('int')));
     });

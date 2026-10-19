@@ -433,5 +433,11 @@ When('I eat {int} {string} apples', (CountingWorld world, int int1, String strin
         .firstWhere((e) => e.suggestion != null)
         .suggestion!;
     expect(suggestion.snippets.map((s) => s.language), ['dart', 'dart']);
+    expect(
+      SnippetGenerator.present([for (final s in suggestion.snippets) s.code]),
+      testCase.snippets.single,
+      reason: 'the suggestion presents as the snippet shown to users',
+    );
+    expect(SnippetGenerator.present(const []), isEmpty);
   });
 }
