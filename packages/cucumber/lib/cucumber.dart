@@ -13,10 +13,15 @@
 ///     );
 /// ```
 ///
-/// This library re-exports the complete `package:cucumber_core` API and adds
-/// the `dart test` host: feature discovery, configuration (`cucumber.yaml`
-/// profiles and `CUCUMBER_*` environment variables) and report outputs. See
-/// `docs/design.md`.
+/// This library re-exports the complete `package:cucumber_core` glue API and
+/// adds the `dart test` host: feature discovery, configuration
+/// (`cucumber.yaml` profiles and `CUCUMBER_*` environment variables) and
+/// report outputs. See `docs/design.md`.
 library;
 
 export 'package:cucumber_core/cucumber_core.dart';
+
+export 'src/configuration.dart' show CucumberConfigurationException;
+export 'src/options.dart' show CucumberOptions;
+export 'src/plugins.dart' show NdjsonPlugin;
+export 'src/suite.dart' show CucumberSuite, cucumber;

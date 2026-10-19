@@ -4,6 +4,9 @@
 .dart_tool/
 .packages
 build/
+
+# Compatibility kit samples, copied in by packages/cucumber/test/compatibility_host_test.dart.
+packages/cucumber/fixtures/cck/samples/
 # If you're building an application, you may want to check-in your pubspec.lock
 pubspec.lock
 

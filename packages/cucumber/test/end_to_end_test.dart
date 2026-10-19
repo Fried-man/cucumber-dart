@@ -1,0 +1,369 @@
+// Runs `dart test` on the fixture project in fixtures/e2e and checks what
+// package:test reports (JSON reporter) and what Cucumber writes (NDJSON).
+@Timeout(Duration(minutes: 5))
+library;
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
+
+import 'support/dart_test_runner.dart';
+
+final String _fixture = fixtureDirectory('e2e');
+
+String _build(String file) => p.join(_fixture, 'build', 'cucumber', file);
+
+void _clean() {
+  final build = Directory(p.join(_fixture, 'build'));
+  if (build.existsSync()) build.deleteSync(recursive: true);
+}
+
+void main() {
+  group('dart test on a fixture project', () {
+    late DartTestRun run;
+    late List<Map<String, Object?>> envelopes;
+
+    setUpAll(() async {
+      _clean();
+      run = await runDartTest(
+        _fixture,
+        environment: {'CUCUMBER_WORLD_PARAMETERS': '{"source": "env"}'},
+      );
+      envelopes = readNdjson(_build('messages.ndjson'));
+    });
+
+    test('fails because scenarios fail', () {
+      expect(run.exitCode, 1, reason: run.describe());
+    });
+
+    test('declares one test per scenario and example row', () {
+      expect(
+        [for (final t in run.featureTests) t.name],
+        unorderedEquals([
+          // test/cucumber_test.dart: every feature file, with a test for the
+          // one that does not parse, and without @wip (cucumber.yaml).
+          'features/broken.feature',
+          'Other one',
+          'Other two',
+          'Shop passing',
+          'Shop failing',
+          'Shop pending',
+          'Shop undefined',
+          'Shop ambiguous',
+          'Shop skipped',
+          'Shop flaky',
+          'Shop world parameters',
+          'Shop Payments pay with <method> Cards Example #1.1: pay with visa',
+          'Shop Payments pay with <method> Cards Example #1.2: pay with amex',
+          'Shop Payments pay with <method> Examples Example #2.1: pay with cash',
+          // test/before_all_test.dart: features/more/other.feature:3.
+          'Other one',
+        ]),
+      );
+    });
+
+    test('locates groups and tests in the feature files', () {
+      void expectFile(String? url, String file) {
+        expect(url, endsWith('/fixtures/e2e/features/$file'));
+        expect(Uri.parse(url!).isScheme('file'), isTrue);
+      }
+
+      const row =
+          'Shop Payments pay with <method> Cards Example #1.2: pay with amex';
+      final locations = <String, (int?, int?)>{};
+      for (final name in [
+        'Shop',
+        'Shop Payments',
+        'Shop Payments pay with <method>',
+        'Shop Payments pay with <method> Cards',
+      ]) {
+        final group = run.group(name);
+        expectFile(group.url, 'shop.feature');
+        locations[name] = (group.line, group.column);
+      }
+      for (final name in ['Shop failing', row]) {
+        final test = run.test(name);
+        expectFile(test.url, 'shop.feature');
+        locations[name] = (test.line, test.column);
+      }
+      final broken = run.test('features/broken.feature');
+      expectFile(broken.url, 'broken.feature');
+      locations['features/broken.feature'] = (broken.line, broken.column);
+
+      expect(locations, {
+        'Shop': (2, 1),
+        'Shop Payments': (41, 3),
+        'Shop Payments pay with <method>': (44, 5),
+        'Shop Payments pay with <method> Cards': (47, 7),
+        'Shop failing': (12, 3),
+        row: (50, 9),
+        'features/broken.feature': (4, 3),
+      });
+    });
+
+    test('maps outcomes', () {
+      final outcomes = {
+        for (final t in run.featureTests)
+          if (t.name.startsWith('Shop') || t.name.startsWith('features/'))
+            t.name: t.outcome,
+      };
+      expect(outcomes, {
+        'features/broken.feature': 'failed',
+        'Shop passing': 'passed',
+        'Shop failing': 'failed',
+        'Shop pending': 'failed',
+        'Shop undefined': 'failed',
+        'Shop ambiguous': 'failed',
+        'Shop skipped': 'skipped',
+        'Shop flaky': 'passed',
+        'Shop world parameters': 'passed',
+        'Shop Payments pay with <method> Cards Example #1.1: pay with visa':
+            'passed',
+        'Shop Payments pay with <method> Cards Example #1.2: pay with amex':
+            'passed',
+        'Shop Payments pay with <method> Examples Example #2.1: pay with cash':
+            'passed',
+      });
+    });
+
+    test('FAILED rethrows the original error after printing the context', () {
+      final failing = run.test('Shop failing');
+      expect(
+        failing.result,
+        'error',
+        reason: 'StateError is not a TestFailure',
+      );
+      expect(failing.errors.single, startsWith('Bad state: boom\n'));
+      expect(failing.errors.single, contains('shop_glue.dart'));
+      expect(
+        failing.prints.join('\n'),
+        allOf(
+          contains(
+            'Failed step in scenario "failing" (features/shop.feature:12)',
+          ),
+          contains('When a step fails with "boom" (features/shop.feature:14)'),
+          contains('(after 2 attempts)'),
+        ),
+      );
+    });
+
+    test('PENDING, UNDEFINED and AMBIGUOUS fail with a TestFailure', () {
+      final pending = run.test('Shop pending');
+      expect(pending.result, 'failure');
+      expect(
+        pending.errors.single,
+        allOf(
+          contains('Pending step in scenario "pending"'),
+          contains('Given a pending step (features/shop.feature:18)'),
+          contains('not built yet'),
+        ),
+      );
+
+      final undefined = run.test('Shop undefined');
+      expect(undefined.result, 'failure');
+      expect(
+        undefined.errors.single,
+        allOf(
+          contains(
+            'And an undefined step with 3 cukes (features/shop.feature:22)',
+          ),
+          contains('Implement it with this snippet:'),
+          contains(
+            "Given('an undefined step with {int} cukes', "
+            '(ShopWorld world, int int1) {',
+          ),
+          contains('throw PendingException();'),
+        ),
+      );
+
+      final ambiguous = run.test('Shop ambiguous');
+      expect(ambiguous.result, 'failure');
+      expect(
+        ambiguous.errors.single,
+        allOf(
+          contains('Multiple step definitions match "an ambiguous step"'),
+          contains('shop_glue.dart'),
+        ),
+      );
+    });
+
+    test('SKIPPED is marked skipped with the reason', () {
+      final skipped = run.test('Shop skipped');
+      expect(skipped.errors, isEmpty);
+      expect(
+        skipped.prints.join('\n'),
+        contains(
+          'Skipped at Given a step skips (features/shop.feature:29): '
+          'not today',
+        ),
+      );
+    });
+
+    test('a parse error is a failing test', () {
+      final broken = run.test('features/broken.feature');
+      expect(broken.result, 'failure');
+      expect(
+        broken.errors.single,
+        contains('(4:3): expected: #EOF, #TableRow'),
+      );
+    });
+
+    test('a failed BeforeAll hook fails every test with the reason', () {
+      final tests = [
+        for (final t in run.featureTests)
+          if (t.name == 'Other one' && t.result != 'success') t,
+      ];
+      expect(tests, hasLength(1), reason: run.describe());
+      expect(
+        tests.single.errors.single,
+        allOf(
+          startsWith('Not run because a BeforeAll hook failed.'),
+          contains('FAILED BeforeAll hook "database"'),
+          contains('Bad state: database is down'),
+          contains('before_all_test.dart'),
+        ),
+      );
+
+      final messages = readNdjson(_build('before_all.ndjson'));
+      expect(ofType(messages, 'pickle'), hasLength(2));
+      expect(ofType(messages, 'testCase'), isEmpty);
+      final hook = ofType(messages, 'testRunHookFinished').single;
+      expect((hook['result']! as Map<String, Object?>)['status'], 'FAILED');
+      expect(ofType(messages, 'testRunFinished').single['success'], isFalse);
+    });
+
+    test('writes the NDJSON report', () {
+      String typeOf(Map<String, Object?> e) => e.keys.single;
+      expect(typeOf(envelopes.first), 'meta');
+      expect(typeOf(envelopes.last), 'testRunFinished');
+      expect(envelopes.last['testRunFinished'], containsPair('success', false));
+
+      expect(
+        [for (final s in ofType(envelopes, 'source')) s['uri']],
+        [
+          'features/broken.feature',
+          'features/more/other.feature',
+          'features/shop.feature',
+        ],
+      );
+      expect(ofType(envelopes, 'parseError'), hasLength(1));
+      // Filtered pickles (@wip) are still emitted, but never run.
+      final pickles = ofType(envelopes, 'pickle');
+      expect(pickles.map((p) => p['name']), contains('work in progress'));
+      expect(pickles, hasLength(14));
+      expect(ofType(envelopes, 'testCase'), hasLength(13));
+    });
+
+    test('reports the Dart platform in meta', () {
+      final meta = envelopes.first['meta']! as Map<String, Object?>;
+      final runtime = meta['runtime']! as Map<String, Object?>;
+      expect(runtime['name'], 'Dart');
+      expect(runtime['version'], Platform.version.split(' ').first);
+      expect(meta['os'], containsPair('name', Platform.operatingSystem));
+      expect((meta['cpu']! as Map<String, Object?>)['name'], isNotEmpty);
+      expect(meta['implementation'], containsPair('name', 'cucumber-dart'));
+    });
+
+    test('retries FAILED scenarios inside the test', () {
+      final pickle = ofType(
+        envelopes,
+        'pickle',
+      ).singleWhere((p) => p['name'] == 'flaky');
+      final testCase = ofType(
+        envelopes,
+        'testCase',
+      ).singleWhere((t) => t['pickleId'] == pickle['id']);
+      final attempts = ofType(
+        envelopes,
+        'testCaseStarted',
+      ).where((s) => s['testCaseId'] == testCase['id']).toList();
+      expect([for (final a in attempts) a['attempt']], [0, 1]);
+      final finished = {
+        for (final f in ofType(envelopes, 'testCaseFinished'))
+          f['testCaseStartedId']: f['willBeRetried'],
+      };
+      expect([for (final a in attempts) finished[a['id']]], [true, false]);
+    });
+
+    test('merges world parameters from code, cucumber.yaml and the '
+        'environment', () {
+      final logs = [
+        for (final a in ofType(envelopes, 'attachment'))
+          if (a['mediaType'] == 'text/x.cucumber.log+plain')
+            jsonDecode(a['body']! as String),
+      ];
+      expect(logs.single, {
+        'source': 'env',
+        'fromCode': true,
+        'nested': {'a': 1},
+      });
+    });
+
+    test('delivers the messages to custom plugins', () {
+      final counts =
+          jsonDecode(File(_build('counts.json')).readAsStringSync())
+              as Map<String, Object?>;
+      final expected = <String, int>{};
+      for (final envelope in envelopes) {
+        expected.update(envelope.keys.single, (n) => n + 1, ifAbsent: () => 1);
+      }
+      expect(counts, expected);
+    });
+  });
+
+  group('dart test --tags with a profile from CUCUMBER_PROFILE', () {
+    late DartTestRun run;
+
+    setUpAll(() async {
+      _clean();
+      run = await runDartTest(
+        _fixture,
+        arguments: ['--tags', 'smoke', 'test/cucumber_test.dart'],
+        environment: {
+          'CUCUMBER_PROFILE': 'ci',
+          'CUCUMBER_EXECUTION_ORDER': 'reverse',
+        },
+      );
+    });
+
+    test('runs only the scenarios with that tag, in the configured order', () {
+      expect(run.exitCode, 0, reason: run.describe());
+      expect(
+        [for (final t in run.featureTests) '${t.outcome} ${t.name}'],
+        ['skipped Shop skipped', 'passed Shop passing'],
+      );
+    });
+
+    test('emits test cases only for the tests that ran', () {
+      expect(
+        File(_build('messages.ndjson')).existsSync(),
+        isFalse,
+        reason: 'the ci profile replaces the plugins',
+      );
+      final envelopes = readNdjson(_build('ci.ndjson'));
+      expect(ofType(envelopes, 'pickle'), hasLength(14));
+      expect(ofType(envelopes, 'testCase'), hasLength(2));
+      expect(ofType(envelopes, 'testCaseFinished'), hasLength(2));
+      expect(
+        envelopes.last['testRunFinished'],
+        containsPair('success', false),
+        reason: 'features/broken.feature does not parse',
+      );
+    });
+  });
+
+  test('the example project passes', () async {
+    final example = p.join(cucumberPackageDirectory, 'example');
+    final run = await runDartTest(example);
+    expect(run.exitCode, 0, reason: run.describe());
+    expect(run.featureTests, hasLength(6));
+    expect(
+      File(
+        p.join(example, 'build', 'cucumber', 'messages.ndjson'),
+      ).existsSync(),
+      isTrue,
+    );
+  });
+}

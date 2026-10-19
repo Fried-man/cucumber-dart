@@ -1037,7 +1037,10 @@ workaround lives in `cucumber_core`, not in a fork.
 
 **Status (2026-10-19):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
 `SerialHost` (`packages/cucumber_core/test/compatibility/`), and the tag-expression conformance suite is green. M3
-(the `dart test` host in `package:cucumber`) is next.
+is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
+Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and 46 CCK
+samples pass through the real host (`fixtures/cck`); `empty` is left out because it declares no tests, so nothing
+is written (§6). M5 (reports) is next.
 
 ---
 

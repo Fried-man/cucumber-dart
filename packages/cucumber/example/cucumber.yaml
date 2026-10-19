@@ -1,0 +1,11 @@
+# Cucumber configuration (design §4.9). Profiles are selected with
+# CUCUMBER_PROFILE; `default` applies when none is named.
+default:
+  tags: not @wip
+  plugins:
+    - message:build/cucumber/messages.ndjson
+
+wip:
+  tags: '@wip'
+  plugins:
+    - message:build/cucumber/wip.ndjson

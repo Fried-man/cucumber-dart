@@ -1,0 +1,11 @@
+default:
+  tags: not @wip
+  worldParameters:
+    source: yaml
+    nested:
+      a: 1
+
+ci:
+  tags: not @wip and not @slow
+  plugins:
+    - message:build/cucumber/ci.ndjson

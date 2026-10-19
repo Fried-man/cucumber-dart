@@ -1,0 +1,15 @@
+name: cucumber_e2e_fixture
+description: >-
+  A fixture project for the end-to-end tests of package:cucumber
+  (test/end_to_end_test.dart). Many of its scenarios fail on purpose.
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+resolution: workspace
+
+dev_dependencies:
+  cucumber: ^0.0.1
+  cucumber_messages: ^34.2.1
+  test: ^1.31.0

@@ -1,0 +1,6 @@
+# Gherkin tags become package:test tags (design §6). Declaring them here
+# avoids package:test's warnings about undeclared tags.
+tags:
+  belly:
+  smoke:
+  wip:

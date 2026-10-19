@@ -9,6 +9,9 @@ environment:
 workspace:
   - packages/cucumber_core
   - packages/cucumber
+  - packages/cucumber/example
+  - packages/cucumber/fixtures/cck
+  - packages/cucumber/fixtures/e2e
   - packages/cucumber_compatibility_kit
 
 dev_dependencies:
