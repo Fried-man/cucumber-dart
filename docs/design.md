@@ -1,7 +1,7 @@
 # cucumber-dart design
 
 - **Status:** Draft. The direction is agreed. Items marked *(Proposed)* are still open for review.
-- **Last updated:** 2026-10-15
+- **Last updated:** 2026-10-19
 - **Decision log:** [`docs/decisions/`](decisions/README.md)
 
 This document describes how cucumber-dart becomes a production-grade Cucumber implementation for Dart that
@@ -172,6 +172,13 @@ Everything up to step 6 runs synchronously inside `main()`:
 | `SnippetGenerator` | Dart snippets via `CucumberExpressionGenerator` | js snippet builder |
 | `SuitePlan` + `TestHost` | Tree of nodes that hosts declare. `SerialHost` executes a plan directly; it is used by the CCK harness and a future CLI | cucumber-jvm `CucumberExecutionContext` |
 | `Plugin` | `onMessage(Envelope)`, `close()` | js formatter plugins |
+
+`cucumber_core` has two public libraries:
+
+- `package:cucumber_core/cucumber_core.dart`: the glue API (glue values, World, context objects, tables,
+  pending/skip, plugins). `package:cucumber` re-exports it.
+- `package:cucumber_core/engine.dart`: the host API (`SuitePlan`, `TestHost`, `SerialHost`, `RunOptions`,
+  `FeatureSource`, filters, orders, ID schemes, `CucumberPlatform`, results). It re-exports the glue API.
 
 ---
 
@@ -783,8 +790,10 @@ The host supplies these values; the core stays pure.
 Each UNDEFINED step emits `suggestion {pickleStepId, snippets[{language: 'dart', code}]}` between its
 `testStepStarted` and `testStepFinished`.
 
-- **Expressions:** `CucumberExpressionGenerator` produces the candidate expressions. The first becomes code and the
-  rest are added as comments.
+- **Expressions:** `CucumberExpressionGenerator` produces the candidate expressions.
+  - In the `suggestion` message, each expression becomes its own `Snippet`, as fake-cucumber and the CCK expect.
+  - In output for people (`TestCaseResult.snippets`, used by hosts), the first becomes code and the rest are added
+    as comments.
 - **Keyword:** taken from `PickleStep.type`:
 
 | `PickleStep.type` | Keyword |
@@ -923,7 +932,8 @@ than a rewrite.
   - Timestamps and durations are ignored.
   - For `meta`, only `protocolVersion` is checked.
   - The URI and line of code `sourceReference`s are ignored.
-  - `message`, `exception.message` and `exception.stackTrace` are ignored.
+  - `message`, `exception.message` and `exception.stackTrace` are ignored. `exception.type` is ignored too, because
+    the samples throw JavaScript `Error`s; only the presence of `exception` is compared.
   - Snippet `code` and `language` are ignored here and checked against Dart golden snippets separately.
   - These are kept and compared: Gherkin locations, statuses, `stepMatchArguments` (including group `start`
     offsets), attachment bodies, encodings and media types.
@@ -967,6 +977,15 @@ runner needs. Each is worked around in `cucumber_core` or contributed to cucumbe
 
 Upstream contributions come with conformance fixtures and keep the API compatible. Until they are released, any
 workaround lives in `cucumber_core`, not in a fork.
+
+**Current workarounds in `cucumber_core`** (`lib/src/expressions/`):
+
+1. `TreeRegexp` parses the expression's `regexp` and rewrites it as planned above, then computes every group's
+   `start` from the measuring captures. If a pattern cannot be rewritten, nested groups get no `start`.
+2. `cucumber_core` keeps its own registry of the built-in types with non-nullable Dart types and transformers.
+   They mirror the hosted ones, which are still used for parsing and snippet generation.
+3. Parameter types are known when glue loads: Cucumber Expressions are scanned for their (already validated)
+   `{name}` references, and regular expression groups are typed by looking up their source in that registry.
 
 **Upstream wishlist** for the other Dart ports:
 - `cucumber_gherkin`: Markdown support and a default-dialect option.
@@ -1015,6 +1034,10 @@ workaround lives in `cucumber_core`, not in a fork.
 | **M8** | `cucumber_builder`: codegen | Example; compile-time checks |
 | **M9** | `integration_test` on device | Device run producing reports |
 | **M10 Upstreaming** | Remaining expressions PRs (§11); tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
+
+**Status (2026-10-19):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
+`SerialHost` (`packages/cucumber_core/test/compatibility/`), and the tag-expression conformance suite is green. M3
+(the `dart test` host in `package:cucumber`) is next.
 
 ---
 
