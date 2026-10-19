@@ -20,6 +20,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  cucumber_ci_environment: ^15.0.0
   cucumber_core: ^0.0.1
   cucumber_messages: ^34.2.1
   glob: ^2.1.0

@@ -1,6 +1,7 @@
 import 'dart:ffi' show Abi;
 import 'dart:io';
 
+import 'package:cucumber_ci_environment/cucumber_ci_environment.dart';
 import 'package:cucumber_core/engine.dart';
 import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 
@@ -8,7 +9,9 @@ import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 ///
 /// - `meta.runtime`: `Dart` and the SDK version;
 /// - `meta.os`: the operating system and its version;
-/// - `meta.cpu`: the CPU architecture, such as `x64` or `arm64`.
+/// - `meta.cpu`: the CPU architecture, such as `x64` or `arm64`;
+/// - `meta.ci`: the CI server, build and Git details detected from the
+///   environment by `cucumber_ci_environment`, when running on CI.
 final class IoCucumberPlatform extends CucumberPlatform {
   /// Creates the platform. [environment] defaults to the process
   /// environment.
@@ -32,6 +35,9 @@ final class IoCucumberPlatform extends CucumberPlatform {
 
   @override
   messages.Product get cpu => messages.Product(name: cpuArchitecture());
+
+  @override
+  messages.Ci? get ci => detectCiEnvironment(environment);
 }
 
 /// The version number at the start of [platformVersion], which looks like

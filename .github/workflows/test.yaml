@@ -79,3 +79,27 @@ jobs:
       - name: Verify samples match the pinned compatibility kit
         working-directory: packages/cucumber_compatibility_kit
         run: dart run tool/sync.dart --check
+
+  ported-library-testdata:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+        with:
+          sdk: "3.12.0"
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Verify cucumber_ci_environment matches pinned cucumber/ci-environment
+        working-directory: packages/cucumber_ci_environment
+        run: dart run tool/sync.dart --check
+
+      - name: Verify cucumber_query matches pinned cucumber/query
+        working-directory: packages/cucumber_query
+        run: dart run tool/sync.dart --check

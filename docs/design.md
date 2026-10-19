@@ -765,7 +765,7 @@ hooks. We emit each `testCase` just before its first `testCaseStarted`, for two 
 | `runtime` | `Dart` and `Platform.version` |
 | `os` | Operating system and version |
 | `cpu` | ABI |
-| `ci` | From `cucumber_ci_environment` (M5) |
+| `ci` | Detected from the environment by `cucumber_ci_environment`; absent outside CI |
 
 The host supplies these values; the core stays pure.
 
@@ -903,13 +903,26 @@ The following are planned after v1:
 | interim tag expressions (private, in `cucumber_core`) | cucumber/tag-expressions | yes | `parsing.yml`, `evaluations.yml`, `errors.yml` |
 | `cucumber_compatibility_kit` | cucumber/compatibility-kit | yes | npm `@cucumber/compatibility-kit` 31.0.0 |
 | `cucumber_html_formatter` | cucumber/html-formatter | yes | Asset sync from npm; smoke tests |
-| `cucumber_ci_environment` | cucumber/ci-environment | yes | `testdata/src/*.txt(.json)` |
-| `cucumber_query` | cucumber/query | yes (summary, merge) | `testdata/src/*.results.json` |
+| `cucumber_ci_environment` | cucumber/ci-environment | yes | `testdata/src/*.txt(.json)` and `CiEnvironments.json`, v15.0.0 |
+| `cucumber_query` | cucumber/query | yes (summary, merge) | `testdata/src/*.results.json` and `*.naming-strategy.*.txt`, v16.1.1 API, test data from `main` @ `08bf6f0` (CCK 31) |
 | `cucumber_junit_xml_formatter` | cucumber/junit-xml-formatter | later | `testdata/src/*.xml` |
 | `cucumber_pretty_formatter` | cucumber/pretty-formatter | later | `testdata/src/*` |
 
 Each port follows the upstream API and its language-neutral test data, so contributing it upstream is a move rather
 than a rewrite.
+
+- **Sync.** Each port's `tool/sync.dart` downloads the GitHub source archive of a pinned upstream commit and checks
+  a SHA-256 digest of the files it uses (archives are not guaranteed to be byte-stable, so the digest covers the
+  extracted files). It writes them byte-for-byte to `testdata/` (and, for `cucumber_ci_environment`,
+  `CiEnvironments.json` into `lib/src/ci_environments.g.dart`). `.gitattributes` marks them `-text`, and CI runs
+  `tool/sync.dart --check`.
+- **Conformance.** `cucumber_ci_environment` runs every `testdata/src/*.txt` environment. `cucumber_query` runs the
+  41 queries of upstream `QueryAcceptanceTest.java` and the 5 naming strategies on every sample that has expected
+  results.
+- **Where implementations differ.** `cucumber_query` follows the JavaScript API (`Query.update(envelope)`; methods
+  that accept several kinds of message take an `Object`), but returns `null` rather than throwing for missing
+  references, as Java does. `cucumber_ci_environment` follows JavaScript, but falls back to `GITHUB_SHA` when a
+  GitHub pull request event cannot be read, as Java does.
 
 ---
 
@@ -1040,7 +1053,9 @@ workaround lives in `cucumber_core`, not in a fork.
 is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
 Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and 46 CCK
 samples pass through the real host (`fixtures/cck`); `empty` is left out because it declares no tests, so nothing
-is written (§6). M5 (reports) is next.
+is written (§6). M5 (reports) is in progress: `cucumber_ci_environment` (sets `meta.ci` in the `dart test` host) and
+`cucumber_query` are implemented, and their upstream conformance suites are green (§9). The summary, the HTML
+formatter and report merging are next.
 
 ---
 

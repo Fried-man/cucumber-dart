@@ -15,3 +15,10 @@
 # messages embed exact file bytes (e.g. base64 attachments), so git must never
 # rewrite them.
 packages/cucumber_compatibility_kit/features/** -text
+
+# Acceptance test data of the ported libraries, synced byte-for-byte from
+# pinned upstream commits by their tool/sync.dart, which checks for drift
+# byte-for-byte.
+packages/cucumber_ci_environment/testdata/** -text
+packages/cucumber_ci_environment/lib/src/ci_environments.g.dart -text
+packages/cucumber_query/testdata/** -text

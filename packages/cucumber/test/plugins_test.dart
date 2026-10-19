@@ -103,6 +103,30 @@ void main() {
       expect(meta.protocolVersion, protocolVersion);
     });
 
+    test('detects the CI environment for meta.ci', () {
+      final ci = IoCucumberPlatform(
+        environment: {
+          'GITHUB_SERVER_URL': 'https://github.com',
+          'GITHUB_REPOSITORY': 'owner/repo',
+          'GITHUB_RUN_ID': '42',
+          'GITHUB_SHA': 'cafebabe',
+          'GITHUB_EVENT_NAME': 'push',
+          'GITHUB_REF': 'refs/tags/v1.0.0',
+        },
+      ).meta().ci;
+      expect(ci?.toJson(), {
+        'name': 'GitHub Actions',
+        'url': 'https://github.com/owner/repo/actions/runs/42',
+        'buildNumber': '42',
+        'git': {
+          'remote': 'https://github.com/owner/repo.git',
+          'revision': 'cafebabe',
+          'tag': 'v1.0.0',
+        },
+      });
+      expect(IoCucumberPlatform(environment: const {}).meta().ci, isNull);
+    });
+
     test('reads the environment', () {
       expect(IoCucumberPlatform(environment: {'A': 'b'}).environment, {
         'A': 'b',

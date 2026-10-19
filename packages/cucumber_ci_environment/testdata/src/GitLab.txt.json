@@ -1,0 +1,10 @@
+{
+  "buildNumber": "713869896",
+  "git": {
+    "branch": "main",
+    "remote": "https://gitlab.com/cucumber/cucumber.git",
+    "revision": "123456789"
+  },
+  "name": "GitLab",
+  "url": "https://gitlab.com/cucumber/cucumber/jobs/713869896"
+}

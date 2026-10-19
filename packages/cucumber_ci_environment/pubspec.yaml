@@ -1,0 +1,24 @@
+name: cucumber_ci_environment
+description: >-
+  Detects the CI server, build and Git details of a run from environment
+  variables, as a Cucumber Messages Ci. A Dart port of cucumber/ci-environment.
+# Versioned in lockstep with the upstream cucumber/ci-environment release whose
+# data is synced by tool/sync.dart.
+version: 15.0.0
+repository: https://github.com/Fried-man/cucumber-dart
+issue_tracker: https://github.com/Fried-man/cucumber-dart/issues
+# In-repo port of cucumber/ci-environment; publish upstream instead (ADR-0005).
+publish_to: none
+topics: [cucumber, ci]
+
+environment:
+  sdk: ^3.8.0
+
+resolution: workspace
+
+dependencies:
+  cucumber_messages: ^34.2.1
+
+dev_dependencies:
+  crypto: ^3.0.6
+  test: ^1.31.0

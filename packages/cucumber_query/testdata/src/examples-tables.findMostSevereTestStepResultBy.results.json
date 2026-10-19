@@ -1,0 +1,20 @@
+{
+  "testCaseStarted" : [
+    "PASSED",
+    "PASSED",
+    "FAILED",
+    "FAILED",
+    "PASSED",
+    "PASSED",
+    "PASSED"
+  ],
+  "testCaseFinished" : [
+    "PASSED",
+    "PASSED",
+    "FAILED",
+    "FAILED",
+    "PASSED",
+    "PASSED",
+    "PASSED"
+  ]
+}
