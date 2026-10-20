@@ -23,6 +23,6 @@ export 'package:cucumber_core/cucumber_core.dart';
 
 export 'src/configuration.dart' show CucumberConfigurationException;
 export 'src/options.dart' show CucumberOptions;
-export 'src/plugins.dart' show NdjsonPlugin;
+export 'src/plugins.dart' show HtmlPlugin, NdjsonPlugin;
 export 'src/suite.dart' show CucumberSuite, cucumber;
 export 'src/summary.dart' show SummaryPlugin, formatSummary, formatSummaryOf;

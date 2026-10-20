@@ -1,5 +1,6 @@
 // Runs `dart test` on the fixture project in fixtures/e2e and checks what
-// package:test reports (JSON reporter) and what Cucumber writes (NDJSON).
+// package:test reports (JSON reporter) and what Cucumber writes (NDJSON,
+// HTML).
 @Timeout(Duration(minutes: 5))
 library;
 
@@ -256,6 +257,14 @@ void main() {
       expect(ofType(envelopes, 'testCase'), hasLength(13));
     });
 
+    test('writes the HTML report with every message', () {
+      expect(
+        readHtmlReport(_build('report.html')),
+        envelopes,
+        reason: 'the report embeds the NDJSON stream, in order',
+      );
+    });
+
     test('reports the Dart platform in meta', () {
       final meta = envelopes.first['meta']! as Map<String, Object?>;
       final runtime = meta['runtime']! as Map<String, Object?>;
@@ -438,6 +447,18 @@ void main() {
         reason: 'features/broken.feature does not parse',
       );
     });
+
+    test('writes the HTML report of cucumber.yaml', () {
+      expect(
+        File(_build('report.html')).existsSync(),
+        isFalse,
+        reason: 'the ci profile replaces the plugins',
+      );
+      expect(
+        readHtmlReport(_build('ci.html')),
+        readNdjson(_build('ci.ndjson')),
+      );
+    });
   });
 
   test('the example project passes', () async {
@@ -456,11 +477,10 @@ void main() {
       isNot(contains('Failures:')),
       reason: 'a passing run is only counts and the duration',
     );
+    final build = p.join(example, 'build', 'cucumber');
     expect(
-      File(
-        p.join(example, 'build', 'cucumber', 'messages.ndjson'),
-      ).existsSync(),
-      isTrue,
+      readHtmlReport(p.join(build, 'report.html')),
+      readNdjson(p.join(build, 'messages.ndjson')),
     );
   });
 }

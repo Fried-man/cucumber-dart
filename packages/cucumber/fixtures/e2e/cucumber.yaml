@@ -9,3 +9,4 @@ ci:
   tags: not @wip and not @slow
   plugins:
     - message:build/cucumber/ci.ndjson
+    - html:build/cucumber/ci.html

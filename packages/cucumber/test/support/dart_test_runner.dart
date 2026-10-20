@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:cucumber/src/suite.dart' show findPackageRoot;
 import 'package:path/path.dart' as p;
+import 'package:test/test.dart';
 
 /// The directory of package:cucumber.
 String get cucumberPackageDirectory => findPackageRoot(Directory.current.path);
@@ -203,6 +204,32 @@ List<Map<String, Object?>> readNdjson(String path) => [
   for (final line in File(path).readAsLinesSync())
     if (line.trim().isNotEmpty) jsonDecode(line) as Map<String, Object?>,
 ];
+
+/// Reads the messages embedded in the HTML report at [path] (the
+/// `window.CUCUMBER_MESSAGES` array literal) into JSON maps.
+///
+/// Fails unless the report is complete: from `<!DOCTYPE html>` to `</html>`.
+List<Map<String, Object?>> readHtmlReport(String path) {
+  final html = File(path).readAsStringSync();
+  expect(html, startsWith('<!DOCTYPE html>\n'));
+  expect(html, endsWith('</body>\n</html>\n'));
+  const start = 'window.CUCUMBER_MESSAGES = [';
+  final from = html.indexOf(start);
+  final to = html.indexOf('];\n</script>', from);
+  expect(from, isNonNegative);
+  expect(to, isNonNegative);
+  final text = html.substring(from + start.length, to);
+  expect(text, isNot(contains('<')), reason: '< is escaped as \\x3C');
+  // Like JavaScript: JSON with the `\x3C` escape (and `\\x3C` left alone).
+  final json = text.replaceAllMapped(
+    RegExp(r'\\(x3C|.)'),
+    (match) => match[1] == 'x3C' ? r'\u003C' : match[0]!,
+  );
+  return [
+    for (final envelope in jsonDecode('[$json]') as List<Object?>)
+      envelope! as Map<String, Object?>,
+  ];
+}
 
 /// The envelopes of [type] in [envelopes].
 List<Map<String, Object?>> ofType(

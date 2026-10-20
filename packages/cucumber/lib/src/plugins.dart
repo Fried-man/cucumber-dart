@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cucumber_core/engine.dart';
+import 'package:cucumber_html_formatter/cucumber_html_formatter.dart';
 import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 import 'package:path/path.dart' as p;
 
@@ -24,16 +25,10 @@ final class NdjsonPlugin implements Plugin {
 
   @override
   void onMessage(messages.Envelope envelope) {
-    final sink = _sink ??= _open();
+    final sink = _sink ??= _open(path);
     sink
       ..write(messages.envelopeToJsonString(envelope))
       ..write('\n');
-  }
-
-  IOSink _open() {
-    final file = File(path);
-    file.parent.createSync(recursive: true);
-    return file.openWrite();
   }
 
   @override
@@ -47,12 +42,56 @@ final class NdjsonPlugin implements Plugin {
   String toString() => 'message:$path';
 }
 
+/// Writes the messages as a standalone HTML report with
+/// `package:cucumber_html_formatter` (design §8.2). Its plugin specification
+/// is `html:<path>`.
+///
+/// The messages are streamed into the report as they arrive. The file is
+/// created (with its parent directories) when the first message arrives, so
+/// a suite whose tests are all filtered out writes nothing; the report is
+/// complete once the plugin is closed.
+final class HtmlPlugin implements Plugin {
+  /// Creates a plugin writing to [path].
+  HtmlPlugin(this.path);
+
+  /// The output file.
+  final String path;
+
+  IOSink? _sink;
+  MessagesToHtmlWriter? _writer;
+
+  @override
+  void onMessage(messages.Envelope envelope) {
+    (_writer ??= MessagesToHtmlWriter(_sink = _open(path))).write(envelope);
+  }
+
+  @override
+  Future<void> close() async {
+    final writer = _writer;
+    final sink = _sink;
+    _writer = null;
+    _sink = null;
+    writer?.close();
+    await sink?.close();
+  }
+
+  @override
+  String toString() => 'html:$path';
+}
+
+IOSink _open(String path) {
+  final file = File(path);
+  file.parent.createSync(recursive: true);
+  return file.openWrite();
+}
+
 /// The plugin specifications that can be used in code, `cucumber.yaml` and
 /// `CUCUMBER_PLUGIN`.
-const String pluginSpecifications = 'message:<path>, summary';
+const String pluginSpecifications = 'message:<path>, html:<path>, summary';
 
-/// Creates the plugins for [specs] (design §8.1): `message:<path>` strings
-/// (paths relative to [packageRoot]), `summary`, and [Plugin] instances.
+/// Creates the plugins for [specs] (design §8.1): `message:<path>` and
+/// `html:<path>` strings (paths relative to [packageRoot]), `summary`, and
+/// [Plugin] instances.
 ///
 /// Throws a [CucumberConfigurationException] for anything else.
 List<Plugin> createPlugins(List<Object> specs, {required String packageRoot}) {
@@ -73,15 +112,21 @@ Plugin _fromSpecification(String spec, String packageRoot) {
   final colon = spec.indexOf(':');
   final name = colon < 0 ? spec : spec.substring(0, colon);
   final argument = colon < 0 ? '' : spec.substring(colon + 1).trim();
+  String outputFile() {
+    if (argument.isEmpty) {
+      throw CucumberConfigurationException(
+        'Plugin "$spec" needs an output file: $name:<path>. '
+        '(dart test owns the console.)',
+      );
+    }
+    return p.normalize(p.join(packageRoot, argument));
+  }
+
   switch (name) {
     case 'message':
-      if (argument.isEmpty) {
-        throw CucumberConfigurationException(
-          'Plugin "$spec" needs an output file: message:<path>. '
-          '(dart test owns the console.)',
-        );
-      }
-      return NdjsonPlugin(p.normalize(p.join(packageRoot, argument)));
+      return NdjsonPlugin(outputFile());
+    case 'html':
+      return HtmlPlugin(outputFile());
     case 'summary':
       if (colon >= 0) {
         throw CucumberConfigurationException(

@@ -103,3 +103,7 @@ jobs:
       - name: Verify cucumber_query matches pinned cucumber/query
         working-directory: packages/cucumber_query
         run: dart run tool/sync.dart --check
+
+      - name: Verify cucumber_html_formatter matches pinned @cucumber/html-formatter
+        working-directory: packages/cucumber_html_formatter
+        run: dart run tool/sync.dart --check

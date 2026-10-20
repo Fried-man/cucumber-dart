@@ -847,10 +847,15 @@ abstract interface class Plugin {
 ### 8.2 v1 outputs (ADR-0009)
 
 - **NDJSON (`message`):** the canonical stream (`cucumber_messages` `envelopeToJsonString`).
-- **HTML:** `cucumber_html_formatter`.
+- **HTML (`html`):** `cucumber_html_formatter`.
   - It embeds the prebuilt assets of `@cucumber/html-formatter` (`index.mustache`, `main.js`, `main.css`,
-    `icon.url`, `main.js.LICENSE.txt`). They are pinned and synced from npm, and compiled into Dart constants.
-  - It streams the messages as JSON with `<` escaped as `\x3C`, which is what the Java, Ruby and .NET wrappers do.
+    `icon.url`, `main.js.LICENSE.txt`). They are pinned and synced from npm, and compiled into Dart constants (§9).
+  - `MessagesToHtmlWriter` streams the messages as JSON with `<` escaped as `\x3C`, which is what the Java, Ruby
+    and .NET wrappers do: the template head, then the comma-separated messages as the elements of
+    `window.CUCUMBER_MESSAGES`, then the tail.
+  - `HtmlPlugin` (`html:<path>`, relative to the package root as for `message:`) creates the file when the first
+    message arrives, so a suite that never starts its run writes nothing, and completes the report when it is
+    closed.
 - **Summary and snippets (`summary`):** printed when the suite ends (from `tearDownAll`, so the test reporter
   shows it). It follows cucumber-js's summary formatter, in this order:
   - undefined parameter types;
@@ -914,7 +919,7 @@ The following are planned after v1:
 |---|---|---|---|
 | interim tag expressions (private, in `cucumber_core`) | cucumber/tag-expressions | yes | `parsing.yml`, `evaluations.yml`, `errors.yml` |
 | `cucumber_compatibility_kit` | cucumber/compatibility-kit | yes | npm `@cucumber/compatibility-kit` 31.0.0 |
-| `cucumber_html_formatter` | cucumber/html-formatter | yes | Asset sync from npm; smoke tests |
+| `cucumber_html_formatter` | cucumber/html-formatter | yes | Prebuilt assets of npm `@cucumber/html-formatter` 24.2.0; writer tests and a smoke test on every CCK sample's messages |
 | `cucumber_ci_environment` | cucumber/ci-environment | yes | `testdata/src/*.txt(.json)` and `CiEnvironments.json`, v15.0.0 |
 | `cucumber_query` | cucumber/query | yes (summary, merge) | `testdata/src/*.results.json` and `*.naming-strategy.*.txt`, v16.1.1 API, test data from `main` @ `08bf6f0` (CCK 31) |
 | `cucumber_junit_xml_formatter` | cucumber/junit-xml-formatter | later | `testdata/src/*.xml` |
@@ -928,13 +933,25 @@ than a rewrite.
   extracted files). It writes them byte-for-byte to `testdata/` (and, for `cucumber_ci_environment`,
   `CiEnvironments.json` into `lib/src/ci_environments.g.dart`). `.gitattributes` marks them `-text`, and CI runs
   `tool/sync.dart --check`.
+  - `cucumber_html_formatter` has no test data: its `tool/sync.dart` downloads the pinned npm tarball, verifies its
+    published SHA-512 `dist.integrity` (npm tarballs are byte-stable), and generates `lib/src/assets.g.dart`.
+    That file holds `index.mustache`, `main.js`, `main.js.LICENSE.txt`, `main.css` and `icon.url` as Dart string
+    literals, with `\`, `$`, carriage returns and the bidirectional formatting characters of `main.js` escaped, plus
+    the SHA-256 of each asset, so a test checks that the embedding is lossless. The sync also checks that the
+    template has every placeholder once, in order.
 - **Conformance.** `cucumber_ci_environment` runs every `testdata/src/*.txt` environment. `cucumber_query` runs the
   41 queries of upstream `QueryAcceptanceTest.java` and the 5 naming strategies on every sample that has expected
-  results.
+  results. `cucumber_html_formatter` checks the exact output against the template, the escaping of `<`, an empty run,
+  and, for every CCK sample, that the report differs from an empty run's only by the messages, which are all
+  embedded, in order, and equal to the sample's.
 - **Where implementations differ.** `cucumber_query` follows the JavaScript API (`Query.update(envelope)`; methods
   that accept several kinds of message take an `Object`), but returns `null` rather than throwing for missing
   references, as Java does. `cucumber_ci_environment` follows JavaScript, but falls back to `GITHUB_SHA` when a
-  GitHub pull request event cannot be read, as Java does.
+  GitHub pull request event cannot be read, as Java does. `cucumber_html_formatter` follows Java's
+  `MessagesToHtmlWriter`: `write(envelope)` writes the template head with the first message, `close()` writes the
+  tail (and the head of an empty run), and writing after `close()` throws. The builder becomes named parameters
+  (`title`, `icon`, `css`, `customCss`, `script`, `customScript`), and the writer writes to a `StringSink` that its
+  owner closes. Messages are separated by `,` as in Java and JavaScript (Ruby writes `,\n`).
 
 ---
 
@@ -1069,7 +1086,10 @@ is written (§6). M5 (reports) is in progress: `cucumber_ci_environment` (sets `
 `cucumber_query` are implemented, and their upstream conformance suites are green (§9). The `summary` plugin (§8.2)
 is implemented on `cucumber_query`: unit tests cover its formatter (including retry, undefined, ambiguous, pending,
 an empty run and every CCK sample's messages), and the end-to-end tests check what it prints through `dart test`.
-The HTML formatter and report merging are next.
+`cucumber_html_formatter` wraps the assets of `@cucumber/html-formatter` 24.2.0 (synced and drift-checked, §9), and
+the `html:<path>` plugin (§8.2) writes the report: unit tests cover the writer (escaping, an empty run, every CCK
+sample's messages) and the plugin, and the end-to-end tests check that the reports written through `dart test`
+(from code and from `cucumber.yaml`) embed every message. Report merging is next.
 
 ---
 

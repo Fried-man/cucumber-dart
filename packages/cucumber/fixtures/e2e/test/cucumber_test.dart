@@ -11,6 +11,7 @@ void main() => cucumber(
   worldParameters: {'source': 'code', 'fromCode': true},
   plugins: [
     'message:build/cucumber/messages.ndjson',
+    'html:build/cucumber/report.html',
     'summary',
     CountingPlugin('build/cucumber/counts.json'),
   ],

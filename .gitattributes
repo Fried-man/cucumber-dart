@@ -22,3 +22,8 @@ packages/cucumber_compatibility_kit/features/** -text
 packages/cucumber_ci_environment/testdata/** -text
 packages/cucumber_ci_environment/lib/src/ci_environments.g.dart -text
 packages/cucumber_query/testdata/** -text
+
+# Prebuilt @cucumber/html-formatter assets, generated from the pinned npm
+# tarball by packages/cucumber_html_formatter/tool/sync.dart, which checks the
+# generated file byte-for-byte.
+packages/cucumber_html_formatter/lib/src/assets.g.dart -text

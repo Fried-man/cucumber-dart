@@ -1,0 +1,25 @@
+name: cucumber_html_formatter
+description: >-
+  Writes Cucumber Messages as a standalone HTML report, using the prebuilt
+  assets of @cucumber/html-formatter. A Dart wrapper of cucumber/html-formatter.
+# Versioned in lockstep with the upstream @cucumber/html-formatter release
+# whose assets are synced into lib/src/assets.g.dart by tool/sync.dart.
+version: 24.2.0
+repository: https://github.com/Fried-man/cucumber-dart
+issue_tracker: https://github.com/Fried-man/cucumber-dart/issues
+# In-repo port of cucumber/html-formatter; publish upstream instead (ADR-0005).
+publish_to: none
+topics: [cucumber, html]
+
+environment:
+  sdk: ^3.8.0
+
+resolution: workspace
+
+dependencies:
+  cucumber_messages: ^34.2.1
+
+dev_dependencies:
+  crypto: ^3.0.6
+  cucumber_compatibility_kit: ^31.0.0
+  test: ^1.31.0

@@ -7,6 +7,9 @@ import 'package:cucumber/src/configuration.dart';
 import 'package:cucumber/src/platform.dart';
 import 'package:cucumber/src/plugins.dart';
 import 'package:cucumber_core/engine.dart';
+import 'package:cucumber_html_formatter/cucumber_html_formatter.dart'
+    show mainJs;
+import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -36,6 +39,58 @@ void main() {
         p.join(root.path, 'other.ndjson'),
       );
       expect(plugins[2], same(custom));
+    });
+
+    test('creates HTML plugins relative to the package root', () {
+      final plugins = createPlugins([
+        'html:build/report.html',
+        ' html: ../other.html ',
+      ], packageRoot: root.path);
+      expect(plugins, everyElement(isA<HtmlPlugin>()));
+      expect(
+        (plugins[0] as HtmlPlugin).path,
+        p.join(root.path, 'build', 'report.html'),
+      );
+      expect(
+        (plugins[1] as HtmlPlugin).path,
+        p.normalize(p.join(root.path, '..', 'other.html')),
+      );
+      expect(
+        plugins[0].toString(),
+        'html:${p.join(root.path, 'build', 'report.html')}',
+      );
+    });
+
+    test('takes html from code, cucumber.yaml and CUCUMBER_PLUGIN', () {
+      List<String> plugins(
+        CucumberOptions code, [
+        Map<String, String> environment = const {},
+      ]) => [
+        for (final plugin in createPlugins(
+          resolveConfiguration(
+            code,
+            packageRoot: root.path,
+            environment: environment,
+          ).plugins,
+          packageRoot: root.path,
+        ))
+          '$plugin',
+      ];
+      String html(String file) => 'html:${p.join(root.path, file)}';
+
+      expect(plugins(CucumberOptions(plugins: ['html:code.html'])), [
+        html('code.html'),
+      ]);
+      File(
+        p.join(root.path, 'cucumber.yaml'),
+      ).writeAsStringSync('default:\n  plugins:\n    - html:yaml.html\n');
+      expect(plugins(CucumberOptions()), [html('yaml.html')]);
+      expect(
+        plugins(CucumberOptions(), {
+          'CUCUMBER_PLUGIN': 'html:env.html,summary',
+        }),
+        [html('env.html'), 'summary'],
+      );
     });
 
     test('creates the summary plugin', () {
@@ -92,8 +147,21 @@ void main() {
 
       expect(() => create('message'), rejects(contains('needs an output')));
       expect(() => create('message:'), rejects(contains('needs an output')));
+      expect(
+        () => create('html'),
+        rejects(contains('needs an output file: html:<path>')),
+      );
+      expect(() => create('html: '), rejects(contains('needs an output')));
       expect(() => create('summary:x'), rejects(contains('no argument')));
-      expect(() => create('html:r.html'), rejects(contains('Unknown plugin')));
+      expect(
+        () => create('junit:r.xml'),
+        rejects(
+          allOf(
+            contains('Unknown plugin'),
+            contains('message:<path>, html:<path>, summary'),
+          ),
+        ),
+      );
       expect(() => create(42), rejects(contains('int')));
     });
   });
@@ -128,6 +196,63 @@ void main() {
         features: const [],
         glue: const [],
         plugins: [NdjsonPlugin(path)],
+      );
+      await plan.finish();
+      expect(File(path).existsSync(), isFalse);
+    });
+  });
+
+  group('HtmlPlugin', () {
+    test('writes the messages into the HTML report', () async {
+      final path = p.join(root.path, 'deep', 'dir', 'report.html');
+      final collector = CollectingPlugin();
+      final plugin = HtmlPlugin(path);
+      final plan = SuitePlan.create(
+        features: [
+          const FeatureSource(
+            'features/a.feature',
+            'Feature: a\n  Scenario: <b>s</b>\n    Given a step\n',
+          ),
+        ],
+        glue: [Given('a step', () {})],
+        plugins: [plugin, collector],
+      );
+      expect(File(path).existsSync(), isFalse);
+      await const SerialHost().run(plan);
+
+      final html = File(path).readAsStringSync();
+      expect(html, startsWith('<!DOCTYPE html>'));
+      expect(html, contains('<title>Cucumber</title>'));
+      expect(html, contains(mainJs));
+      expect(html, endsWith('</html>\n'));
+
+      const start = 'window.CUCUMBER_MESSAGES = [';
+      final messagesText = html.substring(
+        html.indexOf(start) + start.length,
+        html.indexOf('];\n</script>'),
+      );
+      expect(messagesText, contains(r'\x3Cb>s\x3C/b>'));
+      expect(messagesText, isNot(contains('<')));
+      final embedded =
+          jsonDecode('[${messagesText.replaceAll(r'\x3C', r'\u003C')}]')
+              as List<Object?>;
+      expect(embedded, [
+        for (final envelope in collector.envelopes)
+          jsonDecode(messages.envelopeToJsonString(envelope)),
+      ]);
+
+      await plugin.close();
+      expect(File(path).readAsStringSync(), html, reason: 'closed once');
+    });
+
+    test('writes nothing when the run never starts', () async {
+      final path = p.join(root.path, 'report.html');
+      final plan = SuitePlan.create(
+        features: const [
+          FeatureSource('features/a.feature', 'Feature: a\n  Scenario: s\n'),
+        ],
+        glue: const [],
+        plugins: [HtmlPlugin(path)],
       );
       await plan.finish();
       expect(File(path).existsSync(), isFalse);
