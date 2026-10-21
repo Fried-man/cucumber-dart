@@ -1,0 +1,15 @@
+name: cucumber_merge_fixture
+description: >-
+  A fixture project with three entry files whose reports are merged into one
+  (design §8.4), for the end-to-end tests of package:cucumber
+  (test/end_to_end_test.dart).
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+resolution: workspace
+
+dev_dependencies:
+  cucumber: ^0.0.1
+  test: ^1.31.0

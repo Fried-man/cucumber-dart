@@ -12,6 +12,12 @@ import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 /// - `meta.cpu`: the CPU architecture, such as `x64` or `arm64`;
 /// - `meta.ci`: the CI server, build and Git details detected from the
 ///   environment by `cucumber_ci_environment`, when running on CI.
+///
+/// Timestamps come from a monotonic clock with microsecond resolution: the
+/// wall-clock time when the platform was created plus a running
+/// [Stopwatch]. `DateTime.now()` can be much coarser (about 15 ms on some
+/// Windows systems), which would give quick scenarios equal timestamps, and
+/// reports order test cases by timestamp.
 final class IoCucumberPlatform extends CucumberPlatform {
   /// Creates the platform. [environment] defaults to the process
   /// environment.
@@ -19,6 +25,11 @@ final class IoCucumberPlatform extends CucumberPlatform {
     : _environment = environment;
 
   final Map<String, String>? _environment;
+  final DateTime _origin = DateTime.now();
+  final Stopwatch _clock = Stopwatch()..start();
+
+  @override
+  DateTime now() => _origin.add(_clock.elapsed);
 
   @override
   Map<String, String> get environment => _environment ?? Platform.environment;

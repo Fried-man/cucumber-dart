@@ -1,6 +1,6 @@
-// Runs `dart test` on the fixture project in fixtures/e2e and checks what
-// package:test reports (JSON reporter) and what Cucumber writes (NDJSON,
-// HTML).
+// Runs `dart test` on the fixture projects in fixtures/e2e and fixtures/merge
+// and checks what package:test reports (JSON reporter) and what Cucumber
+// writes (NDJSON, HTML, merged report parts).
 @Timeout(Duration(minutes: 5))
 library;
 
@@ -10,6 +10,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../../cucumber_core/test/compatibility/cck.dart'
+    show partialOrderProblems;
 import 'support/dart_test_runner.dart';
 
 final String _fixture = fixtureDirectory('e2e');
@@ -458,6 +460,147 @@ void main() {
         readHtmlReport(_build('ci.html')),
         readNdjson(_build('ci.ndjson')),
       );
+    });
+  });
+
+  group('dart test on three entry files', () {
+    final fixture = fixtureDirectory('merge');
+    String build(String relative) =>
+        p.joinAll([fixture, 'build', ...relative.split('/')]);
+    late DartTestRun run;
+    late List<Map<String, Object?>> envelopes;
+
+    setUpAll(() async {
+      final directory = Directory(p.join(fixture, 'build'));
+      if (directory.existsSync()) directory.deleteSync(recursive: true);
+      run = await runDartTest(fixture);
+      envelopes = readNdjson(build('cucumber/messages.ndjson'));
+    });
+
+    const scenarios = {
+      'add an item',
+      'remove an item',
+      'shared by cart',
+      'pay',
+      'ship to France',
+      'ship to Japan',
+      'find an item',
+      'shared by search',
+    };
+
+    test('runs every scenario', () {
+      expect(run.exitCode, 0, reason: run.describe());
+      expect(run.featureTests, hasLength(scenarios.length));
+    });
+
+    test('writes one part per suite, named after the suite', () {
+      final runs = Directory(build('.cucumber/parts')).listSync();
+      expect(runs, hasLength(1));
+      expect(
+        p.basename(runs.single.path),
+        matches(RegExp(r'^\d+$')),
+        reason: 'the run ID is the process ID of dart test',
+      );
+      expect(
+        [
+          for (final file in Directory(runs.single.path).listSync())
+            p.basename(file.path),
+        ]..sort(),
+        [
+          'cart_test.json',
+          'cart_test.ndjson',
+          'checkout.json',
+          'checkout.ndjson',
+          'search_test.json',
+          'search_test.ndjson',
+        ],
+      );
+      expect(
+        [
+          for (final file in Directory(build('.cucumber')).listSync())
+            p.basename(file.path),
+        ]..sort(),
+        ['merge.lock', 'parts'],
+        reason: 'merge lock guards are removed',
+      );
+      expect(
+        [
+          for (final file in Directory(build('cucumber')).listSync())
+            p.basename(file.path),
+        ]..sort(),
+        ['messages.ndjson', 'report.html'],
+        reason: 'temporary files are renamed',
+      );
+    });
+
+    test('leaves one merged NDJSON report with every scenario', () {
+      List<String> types(String type) => [
+        for (final e in envelopes)
+          if (e.keys.single == type) type,
+      ];
+      expect(envelopes.first.keys.single, 'meta');
+      expect(types('meta'), hasLength(1));
+      expect(types('testRunStarted'), hasLength(1));
+      expect(types('testRunFinished'), hasLength(1));
+      expect(envelopes.last['testRunFinished'], containsPair('success', true));
+      expect(partialOrderProblems(envelopes), isEmpty);
+
+      expect(
+        [for (final s in ofType(envelopes, 'source')) s['uri']],
+        unorderedEquals([
+          'features/cart.feature',
+          'features/shared.feature',
+          'features/checkout.feature',
+          'features/search.feature',
+        ]),
+        reason: 'features/shared.feature is in two parts, but listed once',
+      );
+      final pickles = {
+        for (final pickle in ofType(envelopes, 'pickle'))
+          pickle['id']: pickle['name'],
+      };
+      expect(ofType(envelopes, 'pickle'), hasLength(pickles.length));
+      expect(pickles.values.toSet(), scenarios);
+      expect(ofType(envelopes, 'stepDefinition'), hasLength(2));
+      expect(ofType(envelopes, 'hook'), hasLength(1));
+
+      final testCases = {
+        for (final testCase in ofType(envelopes, 'testCase'))
+          testCase['id']: pickles[testCase['pickleId']],
+      };
+      final suites = <String, Set<Object?>>{};
+      for (final started in ofType(envelopes, 'testCaseStarted')) {
+        (suites[started['workerId']! as String] ??= {}).add(
+          testCases[started['testCaseId']],
+        );
+      }
+      expect(suites, {
+        'cart_test': {'add an item', 'remove an item', 'shared by cart'},
+        'checkout': {'pay', 'ship to France', 'ship to Japan'},
+        'search_test': {'find an item', 'shared by search'},
+      });
+      expect(
+        [for (final h in ofType(envelopes, 'testRunHookStarted')) h['workerId']]
+          ..sort(),
+        ['cart_test', 'checkout', 'search_test'],
+      );
+    });
+
+    test('leaves one merged HTML report with every message', () {
+      expect(readHtmlReport(build('cucumber/report.html')), envelopes);
+    });
+
+    test('prints the summary of each suite', () {
+      final summaries = {
+        for (final t in run.tests.values)
+          if (t.name == '(tearDownAll)')
+            p.url.basename(t.suite.replaceAll(r'\', '/')): t.prints.join('\n'),
+      };
+      expect(summaries, {
+        'cart_test.dart': startsWith('3 scenarios (3 passed)\n'),
+        'checkout_test.dart': startsWith('3 scenarios (3 passed)\n'),
+        'search_test.dart': startsWith('2 scenarios (2 passed)\n'),
+      });
     });
   });
 

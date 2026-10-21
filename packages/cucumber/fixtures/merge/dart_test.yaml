@@ -1,0 +1,3 @@
+# Run the three entry files at the same time, so their merges contend for
+# the merge lock.
+concurrency: 3

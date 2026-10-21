@@ -1,0 +1,7 @@
+# Every entry file writes to the same reports, so one `dart test` leaves one
+# merged NDJSON file and one merged HTML report (design §8.4).
+default:
+  plugins:
+    - message:build/cucumber/messages.ndjson
+    - html:build/cucumber/report.html
+    - summary

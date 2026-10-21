@@ -12,6 +12,7 @@ workspace:
   - packages/cucumber/example
   - packages/cucumber/fixtures/cck
   - packages/cucumber/fixtures/e2e
+  - packages/cucumber/fixtures/merge
   - packages/cucumber_compatibility_kit
   - packages/cucumber_ci_environment
   - packages/cucumber_query

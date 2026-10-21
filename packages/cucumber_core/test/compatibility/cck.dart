@@ -123,7 +123,11 @@ const List<String> _typeOrder = [
 
 String typeOf(Map<String, Object?> envelope) => envelope.keys.single;
 
-bool _isIdKey(String key) => key == 'id' || key.endsWith('Id');
+/// Whether [key] holds a message ID or a reference to one. `workerId` names
+/// a worker (such as the suite of a merged report part, design §8.4), not a
+/// message.
+bool _isIdKey(String key) =>
+    key == 'id' || (key.endsWith('Id') && key != 'workerId');
 
 bool _isIdsKey(String key) => key.endsWith('Ids');
 

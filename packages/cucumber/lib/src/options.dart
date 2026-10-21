@@ -35,9 +35,12 @@ final class CucumberOptions {
   /// - [worldParameters]: JSON-like values exposed as `World.parameters`.
   /// - [plugins]: `'message:<path>'` (NDJSON), `'html:<path>'` (HTML report),
   ///   `'summary'` (printed when the suite ends) or [Plugin] instances. Paths
-  ///   are relative to the package root.
-  /// - [suiteName]: the name of this suite's report part. Default: the test
-  ///   file name.
+  ///   are relative to the package root. Under `dart test`, `message:` and
+  ///   `html:` reports are merged from every suite of the run that writes
+  ///   them (design §8.4).
+  /// - [suiteName]: the name of this suite's report part, and the `workerId`
+  ///   of its test cases in merged reports. Default: the test file's path
+  ///   relative to `test/`, without `.dart`.
   /// - [profile]: `cucumber.yaml` profile(s) to apply, comma separated.
   /// - [mapTags]: whether Gherkin tags become `package:test` tags. Default:
   ///   `true`.

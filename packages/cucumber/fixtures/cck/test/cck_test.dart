@@ -43,6 +43,8 @@ void main() {
         retry: retry,
         order: order,
         plugins: ['message:build/cck/$name.ndjson'],
+        // Names the sample's report part (design §8.4).
+        suiteName: name,
         mapTags: false,
       );
     });

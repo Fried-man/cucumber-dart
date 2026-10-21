@@ -6,6 +6,7 @@ import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 import 'package:path/path.dart' as p;
 
 import 'configuration.dart';
+import 'report_merging.dart';
 import 'summary.dart';
 
 /// Writes every message as one line of JSON (NDJSON), the canonical Cucumber
@@ -93,18 +94,42 @@ const String pluginSpecifications = 'message:<path>, html:<path>, summary';
 /// `html:<path>` strings (paths relative to [packageRoot]), `summary`, and
 /// [Plugin] instances.
 ///
+/// Without [merging], `message:` and `html:` become an [NdjsonPlugin] and an
+/// [HtmlPlugin] that write the suite's own messages. With [merging] (as under
+/// `dart test`), they become the outputs of one [MergedReportPlugin], added
+/// last, which writes the suite's report part and rewrites them from the
+/// merged parts of the run when the suite ends (design §8.4).
+///
 /// Throws a [CucumberConfigurationException] for anything else.
-List<Plugin> createPlugins(List<Object> specs, {required String packageRoot}) {
+List<Plugin> createPlugins(
+  List<Object> specs, {
+  required String packageRoot,
+  ReportMerging? merging,
+}) {
+  final outputs = <ReportOutput>[];
+  final plugins = <Plugin>[];
+  for (final spec in specs) {
+    final plugin = switch (spec) {
+      final Plugin plugin => plugin,
+      final String text => _fromSpecification(text.trim(), packageRoot),
+      _ => throw CucumberConfigurationException(
+        'Plugins must be specifications ($pluginSpecifications) or Plugin '
+        'instances, got ${spec.runtimeType}: $spec',
+      ),
+    };
+    switch (plugin) {
+      case NdjsonPlugin(:final path) when merging != null && spec is String:
+        outputs.add(ReportOutput(ReportFormat.message, path));
+      case HtmlPlugin(:final path) when merging != null && spec is String:
+        outputs.add(ReportOutput(ReportFormat.html, path));
+      default:
+        plugins.add(plugin);
+    }
+  }
   return [
-    for (final spec in specs)
-      switch (spec) {
-        final Plugin plugin => plugin,
-        final String text => _fromSpecification(text.trim(), packageRoot),
-        _ => throw CucumberConfigurationException(
-          'Plugins must be specifications ($pluginSpecifications) or Plugin '
-          'instances, got ${spec.runtimeType}: $spec',
-        ),
-      },
+    ...plugins,
+    if (merging != null && outputs.isNotEmpty)
+      MergedReportPlugin(merging, outputs),
   ];
 }
 

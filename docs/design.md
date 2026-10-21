@@ -1,7 +1,7 @@
 # cucumber-dart design
 
 - **Status:** Draft. The direction is agreed. Items marked *(Proposed)* are still open for review.
-- **Last updated:** 2026-10-19
+- **Last updated:** 2026-10-20
 - **Decision log:** [`docs/decisions/`](decisions/README.md)
 
 This document describes how cucumber-dart becomes a production-grade Cucumber implementation for Dart that
@@ -767,7 +767,10 @@ hooks. We emit each `testCase` just before its first `testCaseStarted`, for two 
 | `cpu` | ABI |
 | `ci` | Detected from the environment by `cucumber_ci_environment`; absent outside CI |
 
-The host supplies these values; the core stays pure.
+The host supplies these values; the core stays pure. It also supplies the clock: the `dart test` host's is the
+wall-clock time when the suite is declared plus a running `Stopwatch`, so timestamps are monotonic with microsecond
+resolution. (`DateTime.now()` can be as coarse as 15 ms on Windows, which gave quick scenarios equal timestamps, and
+`cucumber_query` orders test cases by timestamp, then by ID.)
 
 ### 7.4 Attachments
 
@@ -856,6 +859,9 @@ abstract interface class Plugin {
   - `HtmlPlugin` (`html:<path>`, relative to the package root as for `message:`) creates the file when the first
     message arrives, so a suite that never starts its run writes nothing, and completes the report when it is
     closed.
+- **`message:` and `html:` under `dart test`** are merged reports: the suite writes a report part, and its
+  `tearDownAll` rewrites the files from the parts of every suite of the run that configures them (§8.4).
+  `NdjsonPlugin` and `HtmlPlugin` instances passed in code write only their suite's messages.
 - **Summary and snippets (`summary`):** printed when the suite ends (from `tearDownAll`, so the test reporter
   shows it). It follows cucumber-js's summary formatter, in this order:
   - undefined parameter types;
@@ -872,7 +878,8 @@ abstract interface class Plugin {
     Dart snippets, taken from the `suggestion` messages and presented as in §7.5.
 
   `formatSummary(Query)` (and `formatSummaryOf(envelopes)`) is a pure function of the messages, built on
-  `cucumber_query`, so the report merge can reuse it (§8.4). A suite that never starts its run prints nothing.
+  `cucumber_query`, so the merge CLI can reuse it on a merged stream (§8.4). Under `dart test`, each suite prints
+  the summary of its own messages (§8.4). A suite that never starts its run prints nothing.
 
 ### 8.3 Later outputs
 
@@ -889,27 +896,70 @@ The following are planned after v1:
 
 `dart test` runs each entry file in its own isolate, so a run can produce several message streams.
 
-1. **Parts.** Each suite writes its NDJSON part to `<outputDir>/.cucumber/parts/<runId>/<suiteId>.ndjson`.
+1. **Parts.** Each suite that has a `message:` or `html:` output writes its NDJSON part to
+   `<outputDir>/.cucumber/parts/<runId>/<suiteId>.ndjson`, next to a manifest, `<suiteId>.json`, that lists the
+   suite's outputs.
+   - `outputDir` is `<packageRoot>/build`.
    - `runId` is `CUCUMBER_RUN_ID` if set. Otherwise it is the process id, which all isolates started by one
      `dart test` invocation share.
-2. **Automatic merge.** In `tearDownAll`, after closing its part, the suite:
-   1. takes an exclusive file lock on `<outputDir>/.cucumber/merge.lock`;
-   2. merges every part of the same `runId`;
-   3. rewrites the configured merged outputs (NDJSON, HTML, summary);
+   - `suiteId` is the `suiteName` if set. Otherwise it is the test file's path relative to `test/`, without
+     `.dart` (`test/checkout/cart_test.dart` → `checkout/cart_test`), found from the `main` on the stack when the
+     suite is declared. If another suite of the run already has the ID (several suites in one file, or the same
+     `suiteName` twice), the part takes the first free `<suiteId>#2`, `<suiteId>#3`, … The part file is created
+     exclusively, so this also holds across isolates.
+   - IDs become file names by percent-encoding everything except ASCII letters, digits, `-`, `_` and
+     (not leading) `.`, so `checkout/cart_test` is stored as `checkout%2Fcart_test.ndjson`.
+   - The part and its manifest are created when the first message arrives.
+2. **Automatic merge.** In `tearDownAll`, after closing its part (as the last plugin to close), the suite:
+   1. takes an exclusive lock on `<outputDir>/.cucumber/merge.lock`;
+   2. merges the parts of the same `runId`;
+   3. rewrites the configured `message:` and `html:` outputs from the merged stream;
    4. releases the lock.
 
    The last isolate to finish leaves the complete report.
-3. **Merge algorithm.**
-   - One `meta`.
-   - Static messages are de-duplicated by ID (§7.2).
-   - One synthetic `testRunStarted`, with the minimum timestamp.
-   - One `testRunFinished`, with the maximum timestamp. `success` is true only if every part finished and
-     succeeded.
-   - All `testRunStartedId` references are remapped.
+   - **Each output is merged from the suites that configure it.** An output is rewritten from the parts whose
+     manifest lists it, in suite ID order. Suites that share `cucumber.yaml`'s outputs (the usual case) therefore
+     share one report, while a suite with its own output file (such as each CCK sample, or the `BeforeAll` suite
+     of `fixtures/e2e`) keeps its own report.
+   - During the run, the outputs are only written by the merge, under the lock, so isolates never write the same
+     file at the same time. Outputs are written to a temporary file and renamed, so readers never see a partial
+     report.
+   - A part that is still being written (another suite has not finished yet) is merged up to its last complete
+     line, and counts as unfinished. That suite rewrites the outputs again when it finishes.
+   - **The lock.** On Linux and macOS, file locks belong to the process, so `RandomAccessFile.lock` alone does not
+     exclude the isolates of one `dart test` process. The isolates of a process first take turns through a guard
+     file, `merge.lock.<pid>`, created exclusively and deleted on release (a guard older than two minutes, left by
+     an isolate that died while merging, is taken over). The guard holder then takes an exclusive
+     `RandomAccessFile.lock` on `merge.lock`, which excludes other processes and is released by the operating
+     system if the process dies.
+3. **Merge algorithm** (`mergeReportParts`, a pure function exported by `package:cucumber`).
+   - One `meta`: the first part's.
+   - Static messages are de-duplicated (§7.2): `source` and `gherkinDocument` by URI; `pickle`, `stepDefinition`,
+     `hook` and `parameterType` by ID; `parseError` and `undefinedParameterType` by content.
+   - One synthetic `testRunStarted`, with the minimum timestamp and the first part's ID.
+   - One `testRunFinished` (if at least one part finished), with the maximum timestamp. `success` is true only if
+     every part finished and succeeded. Its `message` names the parts that did not finish and carries the parts'
+     own messages (prefixed with their suite IDs when there are several parts); its `exception` is the first part's.
+   - All `testRunStartedId` references are remapped to the synthetic run.
    - `workerId` is set to the suite id on `testCaseStarted` and `testRunHookStarted`. This mirrors cucumber-js's
      parallel workers, which also run `BeforeAll` once per worker.
-4. **CLI.** `dart run cucumber:merge` merges parts collected from CI shards on several machines.
-5. **Cleanup.** Parts from older runs are pruned.
+   - Dynamic IDs are kept unless an earlier part or a static message already uses them (as with incrementing
+     IDs); such an ID becomes `<suiteId>/<id>` and every reference in its part follows.
+   - **Order** (§7.1): `meta`, the Gherkin messages of every part, the glue messages of every part,
+     `testRunStarted`, the dynamic messages of each part one part after the other (unfinished parts last), and
+     `testRunFinished`.
+4. **Summary: per suite.** Each suite prints the summary of its own messages in its `tearDownAll`, as before. A
+   merged summary would repeat the earlier suites' results in every later suite's output, and its content would
+   depend on which isolates happen to have finished, since no isolate knows whether it is the last one. The
+   merged NDJSON and HTML reports have the complete picture, and the merge CLI will be able to print a merged
+   summary (`formatSummary` is a pure function of the messages).
+5. **Suites that never start.** A suite whose tests are all filtered out never runs `setUpAll`/`tearDownAll`
+   (§6), so it writes no part, takes no lock and rewrites nothing. Its scenarios are not in the merged report;
+   the outputs are left as the other suites of the run merged them. If no suite of the run starts, the outputs
+   are not written at all (any report from an earlier run stays).
+6. **CLI** *(later)*. `dart run cucumber:merge` merges parts collected from CI shards on several machines.
+7. **Cleanup** *(later)*. Parts from older runs are pruned. Until then, `build/.cucumber/parts/` keeps one directory
+   per run.
 
 ---
 
@@ -970,7 +1020,8 @@ than a rewrite.
   - Sample arguments are translated: `--retry 2` → `retry: 2`, `--order reverse` → `order: 'reverse'`.
 - **Normalisation:**
   - IDs are remapped to canonical IDs in order of first appearance, then compared exactly. This also checks that
-    references point at the right messages, which is stricter than cucumber-js or cucumber-jvm.
+    references point at the right messages, which is stricter than cucumber-js or cucumber-jvm. `workerId` names a
+    worker, not a message, so it is not an ID here (merged reports set it to the suite ID, §8.4).
   - Timestamps and durations are ignored.
   - For `meta`, only `protocolVersion` is checked.
   - The URI and line of code `sourceReference`s are ignored.
@@ -1077,7 +1128,7 @@ workaround lives in `cucumber_core`, not in a fork.
 | **M9** | `integration_test` on device | Device run producing reports |
 | **M10 Upstreaming** | Remaining expressions PRs (§11); tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
 
-**Status (2026-10-19):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
+**Status (2026-10-20):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
 `SerialHost` (`packages/cucumber_core/test/compatibility/`), and the tag-expression conformance suite is green. M3
 is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
 Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and 46 CCK
@@ -1089,7 +1140,12 @@ an empty run and every CCK sample's messages), and the end-to-end tests check wh
 `cucumber_html_formatter` wraps the assets of `@cucumber/html-formatter` 24.2.0 (synced and drift-checked, §9), and
 the `html:<path>` plugin (§8.2) writes the report: unit tests cover the writer (escaping, an empty run, every CCK
 sample's messages) and the plugin, and the end-to-end tests check that the reports written through `dart test`
-(from code and from `cucumber.yaml`) embed every message. Report merging is next.
+(from code and from `cucumber.yaml`) embed every message. Automatic report merging (§8.4) is implemented:
+`mergeReportParts` (unit tests cover de-duplication, timestamps, success, ID remapping and `workerId`, and every CCK
+sample merged with itself still answers `cucumber_query`'s queries consistently), report parts with the merge lock
+(tested across isolates and processes), and the merge in `tearDownAll`. The end-to-end tests run one `dart test` on
+`fixtures/merge`, whose 3 entry files leave one merged NDJSON and HTML report with every scenario. The
+`dart run cucumber:merge` CLI and pruning of old parts are next.
 
 ---
 

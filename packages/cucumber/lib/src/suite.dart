@@ -10,6 +10,7 @@ import 'host.dart';
 import 'options.dart';
 import 'platform.dart';
 import 'plugins.dart';
+import 'report_merging.dart';
 
 /// Declares a Cucumber suite as `package:test` tests (design §4.8).
 ///
@@ -89,6 +90,12 @@ final class CucumberSuite<W extends Object> {
   ///    test per scenario or example row, and a `setUpAll`/`tearDownAll`
   ///    pair that starts and finishes the run.
   ///
+  /// The `message:` and `html:` outputs are merged reports (design §8.4):
+  /// the suite writes its messages to a report part in
+  /// `build/.cucumber/parts/<runId>/`, and `tearDownAll` rewrites each output
+  /// from the parts of every suite of the run that configures it, so one
+  /// `dart test` run of several entry files leaves one report.
+  ///
   /// Invalid glue throws a `GlueException`, and an invalid configuration
   /// throws a [CucumberConfigurationException], so `dart test` reports a
   /// load failure for the test file.
@@ -118,12 +125,22 @@ final class CucumberSuite<W extends Object> {
       config.features,
       packageRoot: packageRoot,
     );
+    final suiteName = config.suiteName?.trim() ?? '';
+    final merging = ReportMerging(
+      outputDirectory: p.join(packageRoot, outputDirectoryName),
+      runId: resolveRunId(platform.environment),
+      suiteId: suiteName.isNotEmpty ? suiteName : testFileSuiteId(packageRoot),
+    );
     final plan = SuitePlan.create<W>(
       features: features.sources,
       glue: glue,
       world: world as W Function()?,
       options: config.toRunOptions(lines: features.lines),
-      plugins: createPlugins(config.plugins, packageRoot: packageRoot),
+      plugins: createPlugins(
+        config.plugins,
+        packageRoot: packageRoot,
+        merging: merging,
+      ),
       platform: platform,
     );
     PackageTestHost(

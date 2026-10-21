@@ -22,6 +22,7 @@ library;
 export 'package:cucumber_core/cucumber_core.dart';
 
 export 'src/configuration.dart' show CucumberConfigurationException;
+export 'src/merge.dart' show ReportPart, mergeReportParts;
 export 'src/options.dart' show CucumberOptions;
 export 'src/plugins.dart' show HtmlPlugin, NdjsonPlugin;
 export 'src/suite.dart' show CucumberSuite, cucumber;

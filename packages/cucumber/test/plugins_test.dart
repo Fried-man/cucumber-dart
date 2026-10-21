@@ -295,6 +295,26 @@ void main() {
       expect(IoCucumberPlatform(environment: const {}).meta().ci, isNull);
     });
 
+    test('has a monotonic clock with sub-millisecond resolution', () {
+      final platform = IoCucumberPlatform();
+      expect(
+        platform.now().difference(DateTime.now()).abs(),
+        lessThan(const Duration(seconds: 1)),
+      );
+      var previous = platform.now();
+      var step = const Duration(days: 1);
+      for (var i = 0; i < 100000; i++) {
+        final next = platform.now();
+        expect(next.isBefore(previous), isFalse);
+        if (next != previous) {
+          final delta = next.difference(previous);
+          if (delta < step) step = delta;
+        }
+        previous = next;
+      }
+      expect(step, lessThan(const Duration(milliseconds: 1)));
+    });
+
     test('reads the environment', () {
       expect(IoCucumberPlatform(environment: {'A': 'b'}).environment, {
         'A': 'b',
