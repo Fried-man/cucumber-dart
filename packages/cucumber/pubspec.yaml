@@ -20,6 +20,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  args: ^2.7.0
   cucumber_ci_environment: ^15.0.0
   cucumber_core: ^0.0.1
   cucumber_html_formatter: ^24.2.0

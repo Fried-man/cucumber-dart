@@ -473,9 +473,34 @@ void main() {
     setUpAll(() async {
       final directory = Directory(p.join(fixture, 'build'));
       if (directory.existsSync()) directory.deleteSync(recursive: true);
+      // Parts of two earlier runs: one finished long ago, one recent.
+      for (final (runId, age) in [('stale', 2 * 24), ('recent', 0)]) {
+        File(build('.cucumber/parts/$runId/cart_test.ndjson'))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('{}\n')
+          ..setLastModifiedSync(DateTime.now().subtract(Duration(hours: age)));
+      }
       run = await runDartTest(fixture);
       envelopes = readNdjson(build('cucumber/messages.ndjson'));
     });
+
+    /// The directory of this run's parts.
+    String runParts() => Directory(
+      build('.cucumber/parts'),
+    ).listSync().singleWhere((e) => p.basename(e.path) != 'recent').path;
+
+    /// Runs `dart run cucumber:merge [arguments]` in the fixture.
+    Future<ProcessResult> merge(List<String> arguments) => Process.run(
+      Platform.resolvedExecutable,
+      ['run', 'cucumber:merge', ...arguments],
+      workingDirectory: fixture,
+      stdoutEncoding: utf8,
+      stderrEncoding: utf8,
+    );
+
+    String describe(ProcessResult result) =>
+        'exit code ${result.exitCode}\nstdout:\n${result.stdout}\n'
+        'stderr:\n${result.stderr}';
 
     const scenarios = {
       'add an item',
@@ -494,16 +519,14 @@ void main() {
     });
 
     test('writes one part per suite, named after the suite', () {
-      final runs = Directory(build('.cucumber/parts')).listSync();
-      expect(runs, hasLength(1));
       expect(
-        p.basename(runs.single.path),
+        p.basename(runParts()),
         matches(RegExp(r'^\d+$')),
         reason: 'the run ID is the process ID of dart test',
       );
       expect(
         [
-          for (final file in Directory(runs.single.path).listSync())
+          for (final file in Directory(runParts()).listSync())
             p.basename(file.path),
         ]..sort(),
         [
@@ -588,6 +611,86 @@ void main() {
 
     test('leaves one merged HTML report with every message', () {
       expect(readHtmlReport(build('cucumber/report.html')), envelopes);
+    });
+
+    test('prunes the parts of earlier runs unchanged for an hour', () {
+      expect([
+        for (final run in Directory(build('.cucumber/parts')).listSync())
+          p.basename(run.path),
+      ], unorderedEquals([p.basename(runParts()), 'recent']));
+    });
+
+    test('dart run cucumber:merge merges the parts as the automatic merge '
+        'did', () async {
+      final result = await merge([
+        p.relative(runParts(), from: fixture),
+        '-p',
+        'message:build/merged/messages.ndjson',
+        '-p',
+        'html:build/merged/report.html',
+        '-p',
+        'summary',
+      ]);
+      expect(result.exitCode, 0, reason: describe(result));
+      expect(
+        result.stdout,
+        matches(RegExp(r'^8 scenarios \(8 passed\)$', multiLine: true)),
+      );
+      expect(result.stderr, isNot(contains('Warning')));
+      expect(readNdjson(build('merged/messages.ndjson')), envelopes);
+      expect(readHtmlReport(build('merged/report.html')), envelopes);
+    });
+
+    test('dart run cucumber:merge merges the parts of two shards with the '
+        'same suite IDs', () async {
+      // A second shard that ran the same suites.
+      final shard = Directory(build('shard-2'))..createSync();
+      for (final file in Directory(runParts()).listSync().whereType<File>()) {
+        file.copySync(p.join(shard.path, p.basename(file.path)));
+      }
+      final result = await merge([
+        runParts(),
+        'build/shard-2',
+        '--plugin=message:build/shards.ndjson',
+      ]);
+      expect(result.exitCode, 0, reason: describe(result));
+      expect(result.stdout, isNot(contains('scenarios')), reason: 'no summary');
+      expect(
+        result.stderr,
+        allOf(
+          contains('Note: Suite ID "cart_test" is used by several'),
+          contains('is merged as "cart_test#2"'),
+          contains('is merged as "checkout#2"'),
+          contains('is merged as "search_test#2"'),
+          isNot(contains('Warning')),
+        ),
+      );
+      final merged = readNdjson(build('shards.ndjson'));
+      expect(partialOrderProblems(merged), isEmpty);
+      expect(
+        ofType(merged, 'pickle'),
+        hasLength(scenarios.length),
+        reason: 'static messages are de-duplicated',
+      );
+      final workers = <Object?, int>{};
+      for (final started in ofType(merged, 'testCaseStarted')) {
+        workers.update(started['workerId'], (n) => n + 1, ifAbsent: () => 1);
+      }
+      expect(workers, {
+        'cart_test': 3,
+        'checkout': 3,
+        'search_test': 2,
+        'cart_test#2': 3,
+        'checkout#2': 3,
+        'search_test#2': 2,
+      });
+      expect(merged.last['testRunFinished'], containsPair('success', true));
+    });
+
+    test('dart run cucumber:merge exits with 2 for a usage error', () async {
+      final result = await merge(['--plugin', 'junit:out.xml', 'build']);
+      expect(result.exitCode, 2, reason: describe(result));
+      expect(result.stderr, contains('Error: Unknown plugin "junit:out.xml"'));
     });
 
     test('prints the summary of each suite', () {

@@ -112,9 +112,11 @@ final class ReportMerging {
   /// The lock taken while merging.
   String get lockPath => p.join(cucumberDirectory, 'merge.lock');
 
+  /// The directory holding one directory of parts per run.
+  String get runsDirectory => p.join(cucumberDirectory, 'parts');
+
   /// The directory of the run's parts.
-  String get partsDirectory =>
-      p.join(cucumberDirectory, 'parts', fileNameOf(runId));
+  String get partsDirectory => p.join(runsDirectory, fileNameOf(runId));
 
   /// The NDJSON part of the suite [suiteId].
   String partPath(String suiteId) =>
@@ -168,7 +170,8 @@ final class ReportOutput {
 /// - [close] closes the part, then takes the [MergeLock], and rewrites each
 ///   output from [mergeReportParts] of the parts of every suite of the run
 ///   that configures it. So the last suite to finish leaves the complete
-///   report.
+///   report. Still holding the lock, it then deletes the parts of earlier
+///   runs ([pruneReportParts]).
 final class MergedReportPlugin implements Plugin {
   /// Creates a plugin for the suite laid out by [merging], writing
   /// [outputs].
@@ -223,7 +226,10 @@ final class MergedReportPlugin implements Plugin {
     if (part == null) return;
     _part = null;
     await part.close();
-    await withMergeLock(merging.lockPath, () => mergeReports(merging, outputs));
+    await withMergeLock(merging.lockPath, () async {
+      await mergeReports(merging, outputs);
+      pruneReportParts(merging);
+    });
   }
 
   @override
@@ -295,8 +301,63 @@ Future<void> mergeReports(
   }
 }
 
+/// How long the parts of another run are kept after their last modification
+/// (design §8.4): a run whose parts have not changed for this long is no
+/// longer in progress.
+const Duration reportPartRetention = Duration(hours: 1);
+
+/// Deletes the part directories of finished earlier runs below
+/// [ReportMerging.runsDirectory] (design §8.4) and returns their paths.
+///
+/// A run's directory is deleted when it is not the run of [merging] and its
+/// last modification (the latest modification time of its entries, or of the
+/// directory itself if it is empty) is more than [retention] before [now]
+/// (default: the current time). Suites write their parts as they run, so a
+/// run that is still in progress has been modified recently and is kept.
+///
+/// Call it while holding the [MergeLock] of [merging], after merging. It
+/// never throws: a directory that cannot be inspected or deleted is left
+/// (possibly in part) for a later suite to prune.
+List<String> pruneReportParts(
+  ReportMerging merging, {
+  DateTime? now,
+  Duration retention = reportPartRetention,
+}) {
+  final deleted = <String>[];
+  try {
+    final runs = Directory(merging.runsDirectory);
+    if (!runs.existsSync()) return deleted;
+    final current = fileNameOf(merging.runId);
+    final cutoff = (now ?? DateTime.now()).subtract(retention);
+    for (final run in runs.listSync(followLinks: false)) {
+      if (run is! Directory || p.basename(run.path) == current) continue;
+      try {
+        if (!_lastModified(run).isBefore(cutoff)) continue;
+        run.deleteSync(recursive: true);
+        deleted.add(run.path);
+      } on Object {
+        // In use, removed in the meantime, or not ours to delete: keep it.
+      }
+    }
+  } on Object {
+    // Pruning is housekeeping: it must never fail a suite.
+  }
+  return deleted;
+}
+
+DateTime _lastModified(Directory directory) {
+  DateTime? latest;
+  for (final entity in directory.listSync(followLinks: false)) {
+    final modified = entity.statSync().modified;
+    if (latest == null || modified.isAfter(latest)) latest = modified;
+  }
+  return latest ?? directory.statSync().modified;
+}
+
 /// Reads the NDJSON report part at [path]. An incomplete last line (of a
 /// part that is still being written) is left out, as is a missing file.
+///
+/// Throws a [FormatException] if a line is not a Cucumber Messages envelope.
 List<messages.Envelope> readReportPart(String path) {
   final Uint8List bytes;
   try {
@@ -309,9 +370,20 @@ List<messages.Envelope> readReportPart(String path) {
   final text = utf8.decode(Uint8List.sublistView(bytes, 0, end));
   return [
     for (final (index, line) in const LineSplitter().convert(text).indexed)
-      if (line.trim().isNotEmpty)
-        messages.parseEnvelopeJson(line, lineNumber: index + 1),
+      if (line.trim().isNotEmpty) _parseLine(line, index + 1),
   ];
+}
+
+messages.Envelope _parseLine(String line, int lineNumber) {
+  try {
+    return messages.parseEnvelopeJson(line, lineNumber: lineNumber);
+  } on TypeError catch (error) {
+    // A JSON object that does not match the Envelope schema.
+    // The same wording as parseEnvelopeJson's errors.
+    throw FormatException(
+      'Failed to parse Envelope on line $lineNumber: $error',
+    );
+  }
 }
 
 /// Writes [envelopes] to [output], replacing the file in one step (through a
@@ -323,24 +395,33 @@ Future<void> writeReport(
   final file = File(output.path);
   file.parent.createSync(recursive: true);
   final temporary = File('${output.path}.$pid.tmp');
-  final sink = temporary.openWrite();
   try {
-    switch (output.format) {
-      case ReportFormat.message:
-        for (final envelope in envelopes) {
-          sink
-            ..write(messages.envelopeToJsonString(envelope))
-            ..write('\n');
-        }
-      case ReportFormat.html:
-        final writer = MessagesToHtmlWriter(sink);
-        envelopes.forEach(writer.write);
-        writer.close();
+    final sink = temporary.openWrite();
+    try {
+      switch (output.format) {
+        case ReportFormat.message:
+          for (final envelope in envelopes) {
+            sink
+              ..write(messages.envelopeToJsonString(envelope))
+              ..write('\n');
+          }
+        case ReportFormat.html:
+          final writer = MessagesToHtmlWriter(sink);
+          envelopes.forEach(writer.write);
+          writer.close();
+      }
+    } finally {
+      await sink.close();
     }
-  } finally {
-    await sink.close();
+    temporary.renameSync(output.path);
+  } on Object {
+    try {
+      if (temporary.existsSync()) temporary.deleteSync();
+    } on FileSystemException {
+      // Nothing more to do.
+    }
+    rethrow;
   }
-  temporary.renameSync(output.path);
 }
 
 void _writeAtomically(String path, String contents) {

@@ -951,15 +951,48 @@ The following are planned after v1:
 4. **Summary: per suite.** Each suite prints the summary of its own messages in its `tearDownAll`, as before. A
    merged summary would repeat the earlier suites' results in every later suite's output, and its content would
    depend on which isolates happen to have finished, since no isolate knows whether it is the last one. The
-   merged NDJSON and HTML reports have the complete picture, and the merge CLI will be able to print a merged
-   summary (`formatSummary` is a pure function of the messages).
+   merged NDJSON and HTML reports have the complete picture, and the merge CLI prints a merged summary
+   (`formatSummary` is a pure function of the messages).
 5. **Suites that never start.** A suite whose tests are all filtered out never runs `setUpAll`/`tearDownAll`
    (§6), so it writes no part, takes no lock and rewrites nothing. Its scenarios are not in the merged report;
    the outputs are left as the other suites of the run merged them. If no suite of the run starts, the outputs
    are not written at all (any report from an earlier run stays).
-6. **CLI** *(later)*. `dart run cucumber:merge` merges parts collected from CI shards on several machines.
-7. **Cleanup** *(later)*. Parts from older runs are pruned. Until then, `build/.cucumber/parts/` keeps one directory
-   per run.
+6. **CLI.** `dart run cucumber:merge [options] <input>...` merges parts collected from CI shards on several
+   machines (`bin/merge.dart` is a thin wrapper around `runMergeCommand` in `lib/src/merge_command.dart`; parsing,
+   finding and reading parts are separate functions).
+   - **Inputs**: part directories (the `*.ndjson` files directly in them, such as `build/.cucumber/parts/<runId>/`),
+     `.ndjson` part files, and globs of them (expanded by the CLI, so they also work in shells that do not expand
+     them, such as PowerShell). A directory without parts is an error, which names its subdirectories (passing
+     `build/.cucumber/parts/` instead of a run directory is the usual mistake). A file given twice is read once.
+   - **Suite IDs**: the part's manifest's `suiteId` if it has one, otherwise its file name, percent-decoded, without
+     `.ndjson`.
+   - **Order**: the inputs in the order given; the parts of a directory by suite ID (as the automatic merge does, so
+     merging a run directory reproduces the automatic merge), and the matches of a glob by path.
+   - **Repeated suite IDs.** Shards usually run the same suites (`dart test --shard-index` splits the tests of every
+     file), and `mergeReportParts` rejects duplicate IDs. In the merge order, the first part keeps its ID and each
+     later one gets the first `<suiteId>#2`, `<suiteId>#3`, … that no other input uses, as within a run (item 1).
+     Directory names cannot be used: with `CUCUMBER_RUN_ID` set from the CI run, every shard's run directory has
+     the same name. Each renaming is reported on stderr (`Note: …`).
+   - **Outputs**: `-p`/`--plugin`, repeatable, with the plugin specifications of §8.1: `message:<path>` and
+     `html:<path>` (relative to the current directory, written through a temporary file as in item 2) and `summary`
+     (`formatSummary` of the merged stream, on stdout). Without `--plugin`, the summary is printed.
+   - Parts without any complete line are skipped with a warning, and an incomplete last line is left out (the part
+     then counts as unfinished, item 3).
+   - **Exit code**: 0 if the merged `testRunFinished` succeeded; 1 if it failed or no part finished (with a
+     warning); 2 for a usage error (invalid arguments, a missing input, a file that is not an `.ndjson` part, a
+     line that is not a Cucumber Messages envelope, or an output that cannot be written), printed on stderr as
+     `Error: …` with a pointer to `--help`.
+7. **Cleanup.** After the automatic merge, still holding the lock, the suite deletes the part directories of other
+   runs below `build/.cucumber/parts/` that have not been modified for **an hour** (`pruneReportParts`).
+   - A run's last modification is the latest modification time of the entries of its directory (or of the
+     directory itself while it is empty, so a run that has just created it is kept). Suites write their parts as
+     they run, so a run in progress (in another `dart test` process) keeps changing and is never deleted; the
+     current run is never deleted at all.
+   - An hour keeps every run that may still be in progress (no message for an hour means no step started or
+     finished) while bounding the parts to roughly an hour of runs. Keeping the last N runs instead would not
+     protect a long run in progress from many short ones.
+   - Pruning never fails a suite: a run directory that cannot be inspected or deleted (on Windows, a file still
+     open) is left, possibly in part, for a later suite. Symbolic links are not followed.
 
 ---
 
@@ -1133,7 +1166,7 @@ workaround lives in `cucumber_core`, not in a fork.
 is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
 Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and 46 CCK
 samples pass through the real host (`fixtures/cck`); `empty` is left out because it declares no tests, so nothing
-is written (§6). M5 (reports) is in progress: `cucumber_ci_environment` (sets `meta.ci` in the `dart test` host) and
+is written (§6). M5 (reports) is complete: `cucumber_ci_environment` (sets `meta.ci` in the `dart test` host) and
 `cucumber_query` are implemented, and their upstream conformance suites are green (§9). The `summary` plugin (§8.2)
 is implemented on `cucumber_query`: unit tests cover its formatter (including retry, undefined, ambiguous, pending,
 an empty run and every CCK sample's messages), and the end-to-end tests check what it prints through `dart test`.
@@ -1145,7 +1178,12 @@ sample's messages) and the plugin, and the end-to-end tests check that the repor
 sample merged with itself still answers `cucumber_query`'s queries consistently), report parts with the merge lock
 (tested across isolates and processes), and the merge in `tearDownAll`. The end-to-end tests run one `dart test` on
 `fixtures/merge`, whose 3 entry files leave one merged NDJSON and HTML report with every scenario. The
-`dart run cucumber:merge` CLI and pruning of old parts are next.
+`dart run cucumber:merge` CLI (§8.4) is implemented: unit tests cover argument parsing and errors, finding parts
+(manifests, file names, globs), merging two shard directories with a repeated suite ID into NDJSON and HTML, the
+summary and the exit codes, and the end-to-end tests run it on the parts left by `fixtures/merge` (reproducing the
+automatic merge, and merging them with a copy as a second shard). Old parts are pruned after the automatic merge
+(§8.4): unit tests cover the policy (the current run, runs in progress, stale runs) and the end-to-end tests check
+that `dart test` prunes a stale run and keeps a recent one. M6 (v1 hardening) is next.
 
 ---
 

@@ -237,6 +237,114 @@ void main() {
     });
   });
 
+  group('pruneReportParts', () {
+    final old = DateTime.now().subtract(const Duration(hours: 2));
+
+    /// Creates the file [relative] (below `build/.cucumber/parts/`),
+    /// modified at [modified] (default: now).
+    String file(String relative, {DateTime? modified}) {
+      final file = File(path('build/.cucumber/parts/$relative'))
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('{}\n');
+      if (modified != null) file.setLastModifiedSync(modified);
+      return file.path;
+    }
+
+    String run(String runId) => path('build/.cucumber/parts/$runId');
+
+    test('deletes the runs that have not changed for an hour, except the '
+        'current one', () {
+      file('current/cart.ndjson', modified: old);
+      file('stale/cart.ndjson', modified: old);
+      file('stale/cart.json', modified: old);
+      // In progress: a suite is still writing its part.
+      file('running/cart.ndjson', modified: old);
+      file('running/search.ndjson');
+      file('recent/cart.ndjson', modified: DateTime.now());
+      // Just created by a suite that has not created its part yet.
+      Directory(run('starting')).createSync();
+      file('stray.ndjson', modified: old);
+
+      final deleted = pruneReportParts(merging('cart', runId: 'current'));
+
+      expect(deleted, [run('stale')]);
+      expect(
+        Directory(
+          path('build/.cucumber/parts'),
+        ).listSync().map((e) => p.basename(e.path)),
+        unorderedEquals([
+          'current',
+          'running',
+          'recent',
+          'starting',
+          'stray.ndjson',
+        ]),
+      );
+    });
+
+    test('compares the current run by its directory name', () {
+      file('${fileNameOf('ci/42')}/cart.ndjson', modified: old);
+      expect(pruneReportParts(merging('cart', runId: 'ci/42')), isEmpty);
+    });
+
+    test('takes the retention and the time', () {
+      file('a/cart.ndjson', modified: old);
+      final layout = merging('cart', runId: 'current');
+      expect(
+        pruneReportParts(layout, retention: const Duration(hours: 3)),
+        isEmpty,
+      );
+      expect(
+        pruneReportParts(layout, now: old.add(const Duration(minutes: 59))),
+        isEmpty,
+      );
+      expect(
+        pruneReportParts(layout, now: old.add(const Duration(minutes: 61))),
+        [run('a')],
+      );
+    });
+
+    test('does nothing without parts', () {
+      expect(pruneReportParts(merging('cart')), isEmpty);
+    });
+
+    test('never throws, and keeps what it cannot delete', () {
+      final part = file('locked/cart.ndjson', modified: old);
+      final handle = File(part).openSync(mode: FileMode.append);
+      if (!Platform.isWindows) {
+        // Read-only: its entries cannot be deleted (except by root).
+        Process.runSync('chmod', ['555', run('locked')]);
+      }
+      try {
+        final deleted = pruneReportParts(merging('cart', runId: 'current'));
+        expect(
+          Directory(run('locked')).existsSync(),
+          !deleted.contains(run('locked')),
+        );
+      } finally {
+        handle.closeSync();
+        if (!Platform.isWindows) {
+          Process.runSync('chmod', ['755', run('locked')]);
+        }
+      }
+    });
+
+    test('runs after the automatic merge', () async {
+      file('stale/cart.ndjson', modified: old);
+      file('recent/cart.ndjson');
+      await runSuite('cart', 'features/cart.feature', _cart);
+      expect(
+        Directory(
+          path('build/.cucumber/parts'),
+        ).listSync().map((e) => p.basename(e.path)),
+        unorderedEquals(['run', 'recent']),
+      );
+      expect(pickleNames(readNdjson(path('build/cucumber/messages.ndjson'))), [
+        'add',
+      ]);
+    });
+  });
+
   group('createPlugins with merging', () {
     test('turns message: and html: into the outputs of one merged report '
         'plugin, added last', () {
