@@ -3,9 +3,12 @@ description: >-
   Cucumber for Dart: run Gherkin features as dart test tests with Cucumber
   Expressions, hooks, typed data tables and Cucumber Messages reports.
 version: 0.0.1
-repository: https://github.com/Fried-man/cucumber-dart
+repository: https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber
 issue_tracker: https://github.com/Fried-man/cucumber-dart/issues
-# Not publishable until its workspace dependencies are published (ADR-0005).
+# Not publishable until its workspace dependencies cucumber_core,
+# cucumber_ci_environment, cucumber_html_formatter and cucumber_query are on
+# pub.dev, which rejects uploads whose dependencies do not exist (ADR-0005,
+# docs/design.md §14.1).
 publish_to: none
 
 topics:

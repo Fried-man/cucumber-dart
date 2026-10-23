@@ -1,0 +1,8 @@
+# Files left out of the published package (docs/design.md §14.1). The
+# repository's .gitignore files still apply.
+
+build/
+
+# Shared test data of cucumber/tag-expressions, copied verbatim with its
+# upstream LICENSE; the conformance tests run in this repository.
+/test/tag_expressions/testdata/

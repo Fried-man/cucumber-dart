@@ -1,7 +1,7 @@
 # cucumber-dart design
 
 - **Status:** Draft. The direction is agreed. Items marked *(Proposed)* are still open for review.
-- **Last updated:** 2026-10-20
+- **Last updated:** 2026-10-22
 - **Decision log:** [`docs/decisions/`](decisions/README.md)
 
 This document describes how cucumber-dart becomes a production-grade Cucumber implementation for Dart that
@@ -127,6 +127,7 @@ cucumber_builder ──► cucumber_core, build, source_gen       (post-v1)
 - **Ported shared libraries get their own packages.**
   - Each uses the name the Cucumber organisation would publish it under, with `publish_to: none`.
   - Once the upstream package is published, we swap the workspace package for the hosted one (ADR-0005).
+  - The publishing order and what blocks each package are in §14.1.
 - **What users depend on.** Dart users depend on `cucumber`; Flutter users will depend on `cucumber_flutter`.
   `package:cucumber/cucumber.dart` re-exports the full core API, so users never import `cucumber_core` directly.
 
@@ -1161,7 +1162,7 @@ workaround lives in `cucumber_core`, not in a fork.
 | **M9** | `integration_test` on device | Device run producing reports |
 | **M10 Upstreaming** | Remaining expressions PRs (§11); tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
 
-**Status (2026-10-20):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
+**Status (2026-10-22):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
 `SerialHost` (`packages/cucumber_core/test/compatibility/`), and the tag-expression conformance suite is green. M3
 is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
 Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and 46 CCK
@@ -1183,7 +1184,48 @@ sample merged with itself still answers `cucumber_query`'s queries consistently)
 summary and the exit codes, and the end-to-end tests run it on the parts left by `fixtures/merge` (reproducing the
 automatic merge, and merging them with a copy as a second shard). Old parts are pruned after the automatic merge
 (§8.4): unit tests cover the policy (the current run, runs in progress, stale runs) and the end-to-end tests check
-that `dart test` prunes a stale run and keeps a recent one. M6 (v1 hardening) is next.
+that `dart test` prunes a stale run and keeps a recent one. M6 (v1 hardening) has started with publish readiness
+(§14.1). Every package has a README, a CHANGELOG, an example (run by a test, except for the compatibility kit's
+listing and `cucumber`'s example project, which the end-to-end tests run) and a `.pubignore`. `dart pub publish
+--dry-run` passes without warnings for all six packages, and the `publish-dry-run` CI job runs it for the five that
+no unpublished dependency blocks. `cucumber_core` no longer has `publish_to: none` and can be published; `cucumber`
+waits for its workspace dependencies. Docs, API docs, performance and the published CCK report remain.
+
+### 14.1 Publishing
+
+The local dry run is not enough on its own. In the workspace it resolves unpublished dependencies to workspace
+packages, but pub.dev rejects an upload if a package in `dependencies` does not exist on pub.dev. `dev_dependencies`
+are not checked, and pub.dev's analysis (pana) only scores `lib/` and `bin/`. All six package names were free on
+pub.dev on 2026-10-22.
+
+Publishing order, dependencies first:
+
+| Step | Package | Unpublished dependencies | Status | `publish_to` |
+|---|---|---|---|---|
+| 0 | `cucumber_messages`, `cucumber_gherkin`, `cucumber_expressions` | none | On pub.dev (publisher `cucumber.io`) | n/a |
+| 1 | `cucumber_core` | none (dev: `cucumber_compatibility_kit`) | Ready to publish from this repository | not set |
+| 2 | `cucumber_ci_environment`, `cucumber_query`, `cucumber_html_formatter` | none | Dry run passes. To be published upstream by the Cucumber organisation (ADR-0005, M10), not from here | `none` |
+| 2 | `cucumber_compatibility_kit` | none | As above. Only ever a dev dependency, so it does not block step 3 | `none` |
+| 3 | `cucumber` | `cucumber_core`, `cucumber_ci_environment`, `cucumber_html_formatter`, `cucumber_query` | Blocked until all four are on pub.dev | `none` |
+
+- **CI.** The `publish-dry-run` job runs `dart pub publish --dry-run` for steps 1 and 2, and warnings fail it.
+  `cucumber` is left out because its dry run passes but proves nothing about its real blocker.
+- **Until step 3.** Users depend on `cucumber` from Git, overriding its four workspace dependencies with Git
+  dependencies as well (`packages/cucumber/README.md`).
+- **Contents.** Each archive has the README, CHANGELOG, LICENSE, `example/`, `lib/`, `bin/`, `test/` and `tool/`.
+  `.pubignore` leaves out `build/`, the synced upstream test data (`testdata/` of `cucumber_ci_environment` and
+  `cucumber_query`, and `test/tag_expressions/testdata/` of `cucumber_core`) and `cucumber`'s `fixtures/`, which
+  are workspace packages. The archives are 11–85 KB. `cucumber_html_formatter` is 293 KB, because its payload,
+  `lib/src/assets.g.dart`, is 924 KB uncompressed. `repository` points at each package's directory.
+- **Can wait (not blocking).**
+  - The tests that read the left-out data or the fixtures do not run from an archive.
+  - `dart pub get` in an extracted `cucumber_core`, `cucumber_html_formatter` or `cucumber` fails until
+    `cucumber_compatibility_kit` is published, because of the dev dependency. Their tests only run in this
+    repository.
+  - `cucumber`'s example keeps `resolution: workspace`; its README says to remove it outside the repository.
+- **Before uploading `cucumber_core`:** choose the uploader (a verified publisher or a personal account) and replace
+  `(unreleased)` in its CHANGELOG. Its version (0.0.1) is reported in `meta.implementation`
+  (`cucumberCoreVersion`), which a test keeps in step with the pubspec.
 
 ---
 
@@ -1197,7 +1239,7 @@ that `dart test` prunes a stale run and keeps a recent one. M6 (v1 hardening) is
 | Report correlation under `flutter test` | Each test file runs in its own process, so the process id is not shared. `CUCUMBER_RUN_ID` is required there (revisit in M7). |
 | Deterministic static IDs | An unusual choice (ADR-0018). It needs validation against the CCK and the HTML formatter. |
 | World type name in snippets | `Type.toString()` can be minified on web and AOT. Snippets are produced in JIT test runs, so this is acceptable. |
-| Publishing | `cucumber` cannot be published to pub.dev until the ported packages it depends on are published (ADR-0005). `cucumber_expressions` already is (ADR-0020). |
+| Publishing | `cucumber` cannot be published to pub.dev until `cucumber_core` and the ported packages it depends on are published (ADR-0005, §14.1). `cucumber_core` is ready; the ports wait for upstream (M10). `cucumber_expressions` is already on pub.dev (ADR-0020). If upstreaming the ports stalls, v1 needs another route, for example inlining them in `cucumber` (an alternative ADR-0005 rejected for now). |
 | Official adoption | Talk to the Cucumber maintainers early (Discord `#committers`). The org's contribution policy requires disclosing any AI assistance. |
 
 [cucumber-js]: https://github.com/cucumber/cucumber-js

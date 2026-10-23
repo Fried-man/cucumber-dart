@@ -107,3 +107,39 @@ jobs:
       - name: Verify cucumber_html_formatter matches pinned @cucumber/html-formatter
         working-directory: packages/cucumber_html_formatter
         run: dart run tool/sync.dart --check
+
+  # `dart pub publish --dry-run` for every package that no unpublished
+  # dependency blocks (docs/design.md §14.1); warnings fail the job.
+  # cucumber_core can be published from this repository. The ports keep
+  # `publish_to: none` (ADR-0005) and are checked so that they stay ready to be
+  # published upstream. `cucumber` is left out: in the workspace its dry run
+  # resolves its unpublished dependencies, but pub.dev rejects uploads whose
+  # dependencies do not exist.
+  publish-dry-run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - cucumber_core
+          - cucumber_ci_environment
+          - cucumber_compatibility_kit
+          - cucumber_html_formatter
+          - cucumber_query
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+        with:
+          sdk: "3.12.0"
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Dry-run publish ${{ matrix.package }}
+        working-directory: packages/${{ matrix.package }}
+        run: dart pub publish --dry-run

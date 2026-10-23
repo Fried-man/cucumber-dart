@@ -5,7 +5,7 @@ description: >-
 # Versioned in lockstep with the upstream cucumber/ci-environment release whose
 # data is synced by tool/sync.dart.
 version: 15.0.0
-repository: https://github.com/Fried-man/cucumber-dart
+repository: https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber_ci_environment
 issue_tracker: https://github.com/Fried-man/cucumber-dart/issues
 # In-repo port of cucumber/ci-environment; publish upstream instead (ADR-0005).
 publish_to: none

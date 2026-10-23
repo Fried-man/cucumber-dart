@@ -1,0 +1,9 @@
+# Files left out of the published package (docs/design.md §14.1). The
+# repository's .gitignore files still apply.
+
+# Reports and report parts written by the example and the fixtures.
+build/
+
+# Workspace packages run by test/end_to_end_test.dart and
+# test/compatibility_host_test.dart. They resolve only inside this repository.
+/fixtures/

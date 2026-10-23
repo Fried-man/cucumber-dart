@@ -1,0 +1,8 @@
+# Files left out of the published package (docs/design.md §14.1). The
+# repository's .gitignore files still apply.
+
+build/
+
+# Upstream acceptance test data, synced by tool/sync.dart; the conformance
+# tests run in this repository.
+/testdata/

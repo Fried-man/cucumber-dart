@@ -5,7 +5,7 @@ description: >-
 # Versioned in lockstep with the upstream @cucumber/html-formatter release
 # whose assets are synced into lib/src/assets.g.dart by tool/sync.dart.
 version: 24.2.0
-repository: https://github.com/Fried-man/cucumber-dart
+repository: https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber_html_formatter
 issue_tracker: https://github.com/Fried-man/cucumber-dart/issues
 # In-repo port of cucumber/html-formatter; publish upstream instead (ADR-0005).
 publish_to: none

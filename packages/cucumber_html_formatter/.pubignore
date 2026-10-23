@@ -1,0 +1,5 @@
+# Files left out of the published package (docs/design.md §14.1). The
+# repository's .gitignore files still apply. The generated
+# lib/src/assets.g.dart is the package's payload and is published.
+
+build/
