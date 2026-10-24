@@ -20,7 +20,7 @@ number and the Git remote (without credentials), revision, branch and tag. For G
 revision is the pull request's head commit, read from the event payload at `GITHUB_EVENT_PATH`. Pass `readFile` to
 read it some other way, for example where there is no file system.
 
-See [`example/cucumber_ci_environment_example.dart`](example/cucumber_ci_environment_example.dart).
+See [`example/cucumber_ci_environment_example.dart`](https://github.com/Fried-man/cucumber-dart/blob/main/packages/cucumber_ci_environment/example/cucumber_ci_environment_example.dart).
 
 ## Status
 

@@ -52,7 +52,7 @@ Feature: Belly
 }
 ```
 
-[`example/cucumber_core_example.dart`](example/cucumber_core_example.dart) also prints each scenario's status and
+[`example/cucumber_core_example.dart`](https://github.com/Fried-man/cucumber-dart/blob/main/packages/cucumber_core/example/cucumber_core_example.dart) also prints each scenario's status and
 the snippet for an undefined step.
 
 ## Conformance

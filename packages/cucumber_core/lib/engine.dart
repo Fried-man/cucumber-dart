@@ -2,14 +2,34 @@
 /// framework, run it and collect its messages (ADR-0001).
 ///
 /// ```dart
-/// final plan = SuitePlan.create(
-///   features: [FeatureSource('features/belly.feature', text)],
-///   glue: bellyGlue,
-///   world: BellyWorld.new,
-///   plugins: [collector],
-/// );
-/// final result = await const SerialHost().run(plan);
+/// import 'package:cucumber_core/engine.dart';
+///
+/// Future<void> main() async {
+///   final messages = CollectingPlugin();
+///   final plan = SuitePlan.create(
+///     features: [
+///       const FeatureSource('features/belly.feature', '''
+/// Feature: Belly
+///   Scenario: a few cukes
+///     Given I have 42 cukes in my belly
+/// '''),
+///     ],
+///     glue: [Given('I have {int} cukes in my belly', (int cukes) {})],
+///     plugins: [messages],
+///   );
+///   final result = await const SerialHost().run(plan);
+///   print('${result.success}: ${messages.envelopes.length} messages');
+/// }
 /// ```
+///
+/// - [SuitePlan.create] parses [FeatureSource]s, loads the glue, and filters
+///   ([PickleFilter]) and orders ([PickleOrder]) the pickles into a tree of
+///   [PlanNode]s, configured by [RunOptions].
+/// - A [TestHost] declares that tree in a test framework and runs each
+///   [PickleNode] with the plan. [SerialHost] runs a plan directly and
+///   returns its [TestRunResult].
+/// - [CucumberPlatform] supplies the clock and the `meta` facts, and
+///   [IdScheme] allocates message IDs.
 ///
 /// `package:cucumber` builds its `dart test` host on this library. It
 /// re-exports the glue API of `package:cucumber_core/cucumber_core.dart`.

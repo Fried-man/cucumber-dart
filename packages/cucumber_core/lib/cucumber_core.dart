@@ -5,22 +5,36 @@
 ///
 /// ```dart
 /// class BellyWorld extends World {
-///   final belly = Belly();
+///   int cukes = 0;
 /// }
 ///
 /// final bellyGlue = <Glue>[
-///   Given('I have {int} cukes in my belly',
-///       (BellyWorld w, int cukes) => w.belly.eat(cukes)),
-///   When('I wait {int} hour(s)', (BellyWorld w, int hours) => w.belly.wait(hours)),
-///   Then('my belly should growl', (BellyWorld w) => check(w.belly.isGrowling)),
-///   Before((Scenario s) => log('starting ${s.name}')),
+///   Given('I have {int} cukes in my belly', (BellyWorld w, int cukes) {
+///     w.cukes += cukes;
+///   }),
+///   Then('my belly should contain {int} cukes', (BellyWorld w, int cukes) {
+///     if (w.cukes != cukes) throw StateError('${w.cukes} cukes');
+///   }),
+///   Then('my belly should growl', () => pending()),
+///   Before((Scenario s) => log('Starting ${s.name}')),
 /// ];
 /// ```
+///
+/// - Glue: steps ([Given], [When], [Then]), hooks ([Before], [After],
+///   [BeforeStep], [AfterStep], [BeforeAll], [AfterAll]) and types
+///   ([ParameterType], [DataTableType], [DocStringType]).
+/// - Context: [World], [Scenario], [Step], [TestRun], and [attach], [log]
+///   and [link].
+/// - Arguments: [DataTable] and [DocString].
+/// - Outcomes: [pending], [skip] and [Status]; invalid glue throws a
+///   [GlueException].
+/// - Reports: [Plugin]s receive the Cucumber Messages of a run.
 ///
 /// This library is pure Dart: no `dart:io`, `dart:mirrors`, Flutter or
 /// `package:test`. Most users depend on `package:cucumber`, which re-exports it
 /// and runs features with `dart test`. Hosts that run suites themselves use
-/// `package:cucumber_core/engine.dart`. See `docs/design.md`.
+/// `package:cucumber_core/engine.dart`. See the
+/// [design](https://github.com/Fried-man/cucumber-dart/blob/main/docs/design.md).
 library;
 
 export 'src/data/data_table.dart' show DataTable;

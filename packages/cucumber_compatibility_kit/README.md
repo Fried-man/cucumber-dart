@@ -28,7 +28,7 @@ Future<Directory> compatibilityKitSamples() async {
 }
 ```
 
-[`example/cucumber_compatibility_kit_example.dart`](example/cucumber_compatibility_kit_example.dart) lists the
+[`example/cucumber_compatibility_kit_example.dart`](https://github.com/Fried-man/cucumber-dart/blob/main/packages/cucumber_compatibility_kit/example/cucumber_compatibility_kit_example.dart) lists the
 samples and their files.
 
 ## Status

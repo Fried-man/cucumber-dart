@@ -21,7 +21,7 @@ Future<void> writeReport(Iterable<Envelope> envelopes) async {
 
 `MessagesToHtmlWriter` writes to any `StringSink`, which its owner closes. `customCss` and `customScript` extend
 the report, and `css`, `script` and `icon` replace the defaults.
-[`example/cucumber_html_formatter_example.dart`](example/cucumber_html_formatter_example.dart) converts an NDJSON
+[`example/cucumber_html_formatter_example.dart`](https://github.com/Fried-man/cucumber-dart/blob/main/packages/cucumber_html_formatter/example/cucumber_html_formatter_example.dart) converts an NDJSON
 file into a report.
 
 ## Status

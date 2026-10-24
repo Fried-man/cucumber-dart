@@ -143,3 +143,60 @@ jobs:
       - name: Dry-run publish ${{ matrix.package }}
         working-directory: packages/${{ matrix.package }}
         run: dart pub publish --dry-run
+
+  # `dart doc` for every package. dartdoc exits successfully on warnings
+  # (unresolved or ambiguous doc references, broken links, ...), so the job
+  # fails unless its summary line reports none. --validate-links also checks
+  # the links of the package page rendered from the README. dartdoc no longer
+  # reports missing library docs, so a separate step requires a library doc
+  # comment with a Dart example in every public library.
+  api-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - cucumber
+          - cucumber_ci_environment
+          - cucumber_compatibility_kit
+          - cucumber_core
+          - cucumber_html_formatter
+          - cucumber_query
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+        with:
+          sdk: "3.12.0"
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Check library docs of ${{ matrix.package }}
+        working-directory: packages/${{ matrix.package }}
+        shell: bash
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: |
+          status=0
+          for library in lib/*.dart; do
+            docs=$(sed -n '/^library;/q;p' "$library")
+            if ! grep -q '^library;' "$library" ||
+              ! grep -q '^///' <<<"$docs" ||
+              ! grep -q '^/// ```dart' <<<"$docs"; then
+              echo "::error file=packages/$PACKAGE/$library::needs a library doc comment with a Dart example before 'library;'"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Generate API docs for ${{ matrix.package }}
+        working-directory: packages/${{ matrix.package }}
+        shell: bash
+        run: |
+          dart doc --validate-links --output "$RUNNER_TEMP/api" 2>&1 | tee "$RUNNER_TEMP/dart-doc.log"
+          grep -q '^Found 0 warnings and 0 errors\.$' "$RUNNER_TEMP/dart-doc.log"

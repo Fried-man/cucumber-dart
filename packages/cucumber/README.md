@@ -95,7 +95,7 @@ run and debug, `--name`, sharding and coverage work as for any other test. Gherk
 (declare them in `dart_test.yaml` to avoid warnings), and test locations point at the `.feature` lines. The `summary`
 plugin prints the snippets for undefined steps.
 
-The [example](example/) is a complete project.
+The [example](https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber/example) is a complete project.
 
 ## Glue
 

@@ -1,7 +1,7 @@
 # cucumber-dart design
 
 - **Status:** Draft. The direction is agreed. Items marked *(Proposed)* are still open for review.
-- **Last updated:** 2026-10-22
+- **Last updated:** 2026-10-23
 - **Decision log:** [`docs/decisions/`](decisions/README.md)
 
 This document describes how cucumber-dart becomes a production-grade Cucumber implementation for Dart that
@@ -1162,7 +1162,7 @@ workaround lives in `cucumber_core`, not in a fork.
 | **M9** | `integration_test` on device | Device run producing reports |
 | **M10 Upstreaming** | Remaining expressions PRs (§11); tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
 
-**Status (2026-10-22):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
+**Status (2026-10-23):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
 `SerialHost` (`packages/cucumber_core/test/compatibility/`), and the tag-expression conformance suite is green. M3
 is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
 Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and 46 CCK
@@ -1189,7 +1189,12 @@ that `dart test` prunes a stale run and keeps a recent one. M6 (v1 hardening) ha
 listing and `cucumber`'s example project, which the end-to-end tests run) and a `.pubignore`. `dart pub publish
 --dry-run` passes without warnings for all six packages, and the `publish-dry-run` CI job runs it for the five that
 no unpublished dependency blocks. `cucumber_core` no longer has `publish_to: none` and can be published; `cucumber`
-waits for its workspace dependencies. Docs, API docs, performance and the published CCK report remain.
+waits for its workspace dependencies. API docs are done: every public library has a library doc comment with an
+example, and `package:cucumber/cucumber.dart` introduces the whole API it re-exports from `cucumber_core`. The
+`api-docs` CI job runs `dart doc --validate-links` for each package and fails on any warning. It also requires the
+library doc comments, because dartdoc no longer reports missing ones. The CI matrix was already in place: the minimum
+SDK (3.8.0) and 3.12.0 on Linux, and 3.12.0 on macOS and Windows. Docs, performance and the published CCK report
+remain.
 
 ### 14.1 Publishing
 

@@ -21,7 +21,7 @@ void printResults(Iterable<Envelope> envelopes) {
 }
 ```
 
-[`example/cucumber_query_example.dart`](example/cucumber_query_example.dart) reads the messages from an NDJSON file.
+[`example/cucumber_query_example.dart`](https://github.com/Fried-man/cucumber-dart/blob/main/packages/cucumber_query/example/cucumber_query_example.dart) reads the messages from an NDJSON file.
 `namingStrategy(...)` creates the upstream naming strategies for test cases (short or long, with or without the
 feature name), which are `LineageReducer`s over a pickle's lineage in the Gherkin document.
 
