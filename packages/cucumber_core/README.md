@@ -59,7 +59,8 @@ the snippet for an undefined step.
 
 The engine passes 47 of the 49 [Cucumber Compatibility Kit][cck] samples. `markdown` is skipped because
 `cucumber_gherkin` has no Markdown support, and `test-run-exception` because it depends on a switch of the
-reference implementation. The private tag-expression evaluator passes the shared
+reference implementation. The [compatibility report][compatibility] lists every sample, its result and the
+reasons for the skips. The private tag-expression evaluator passes the shared
 [cucumber/tag-expressions][tag-expressions] test data.
 
 See the [design](https://github.com/Fried-man/cucumber-dart/blob/main/docs/design.md) for the execution semantics,
@@ -69,4 +70,5 @@ the messages and the mapping to hosts.
 [cucumber]: https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber
 [messages]: https://github.com/cucumber/messages
 [cck]: https://github.com/cucumber/compatibility-kit
+[compatibility]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/compatibility.md
 [tag-expressions]: https://github.com/cucumber/tag-expressions

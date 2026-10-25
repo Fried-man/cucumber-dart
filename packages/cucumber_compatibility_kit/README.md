@@ -33,10 +33,11 @@ samples and their files.
 
 ## Status
 
-This is the in-repository precursor of a `compatibility-kit/dart` package. [`cucumber_core`][cucumber_core] runs
-47 of the 49 samples through its engine, and [`cucumber`][cucumber] runs 46 through `dart test`. It is meant to be
-contributed to cucumber/compatibility-kit and published from there, so it is not published from this repository
-(`publish_to: none`, [ADR-0005][adr-0005]).
+This is the in-repository precursor of a `compatibility-kit/dart` package. [`cucumber_core`][cucumber_core] passes
+47 of the 49 samples through its engine, and [`cucumber`][cucumber] passes the same 47 through `dart test`. The
+[compatibility report][compatibility] lists every sample, its result through each host and the reasons for the
+skips. This package is meant to be contributed to cucumber/compatibility-kit and published from there, so it is not
+published from this repository (`publish_to: none`, [ADR-0005][adr-0005]).
 
 `tool/sync.dart` downloads the pinned npm tarball, verifies its published integrity hash and writes the samples to
 `features/`. `dart run tool/sync.dart --check` fails when they drift.
@@ -44,4 +45,5 @@ contributed to cucumber/compatibility-kit and published from there, so it is not
 [upstream]: https://github.com/cucumber/compatibility-kit
 [cucumber_core]: https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber_core
 [cucumber]: https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber
+[compatibility]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/compatibility.md
 [adr-0005]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/decisions/0005-monorepo-and-in-repo-ports.md

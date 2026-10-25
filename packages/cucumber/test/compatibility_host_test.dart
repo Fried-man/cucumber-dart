@@ -10,23 +10,17 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../../cucumber_core/test/compatibility/cck.dart';
+import 'support/compatibility_skips.dart';
 import 'support/dart_test_runner.dart';
-
-/// Samples that pass through the SerialHost but cannot through dart test.
-const Map<String, String> _notThroughDartTest = {
-  'empty':
-      'declares no tests, so package:test never runs setUpAll and nothing is '
-      'written (design §6)',
-};
 
 final String _fixture = fixtureDirectory('cck');
 
 void main() {
+  final directories = sampleDirectories();
+  final skipped = {...skippedSamples, ...skippedThroughDartTest};
   final samples = [
-    for (final dir in sampleDirectories())
-      if (!skippedSamples.containsKey(sampleName(dir)) &&
-          !_notThroughDartTest.containsKey(sampleName(dir)))
-        dir,
+    for (final dir in directories)
+      if (!skipped.containsKey(sampleName(dir))) dir,
   ];
   late DartTestRun run;
 
@@ -53,9 +47,10 @@ void main() {
     expect(run.featureTests, isNotEmpty, reason: run.describe());
   });
 
-  for (final dir in samples) {
+  // Skipped samples are reported as skipped tests, as in cucumber_core.
+  for (final dir in directories) {
     final name = sampleName(dir);
-    test(name, () {
+    test(name, skip: skipped[name], () {
       final file = File(p.join(_fixture, 'build', 'cck', '$name.ndjson'));
       expect(file.existsSync(), isTrue, reason: run.describe());
       final actual = readNdjson(file.path);

@@ -5,7 +5,8 @@ tables and doc strings, and [Cucumber Messages][messages] reports (NDJSON, HTML 
 
 It is built on the official Cucumber components for Dart ([`cucumber_gherkin`][gherkin],
 [`cucumber_messages`][messages] and [`cucumber_expressions`][expressions]) and is checked against the
-[Cucumber Compatibility Kit][cck].
+[Cucumber Compatibility Kit][cck]: 47 of its 49 samples pass through `dart test` (see the
+[compatibility report][compatibility]).
 
 > **Status: pre-release.** `cucumber` is not on pub.dev yet, because it depends on packages that are not published
 > yet (see [Publishing][publishing]). Until then, depend on it from Git, as shown below.
@@ -151,6 +152,7 @@ dart run cucumber:merge -p html:build/cucumber/report.html shard-1/ shard-2/
 
 - [Design](https://github.com/Fried-man/cucumber-dart/blob/main/docs/design.md) and
   [decision log](https://github.com/Fried-man/cucumber-dart/tree/main/docs/decisions)
+- [Compatibility report][compatibility]: every Cucumber Compatibility Kit sample, its result and the skip list
 - [`cucumber_core`](https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber_core): the
   runner-agnostic engine that this package re-exports
 
@@ -158,4 +160,5 @@ dart run cucumber:merge -p html:build/cucumber/report.html shard-1/ shard-2/
 [gherkin]: https://github.com/cucumber/gherkin
 [expressions]: https://pub.dev/packages/cucumber_expressions
 [cck]: https://github.com/cucumber/compatibility-kit
+[compatibility]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/compatibility.md
 [publishing]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/design.md#141-publishing

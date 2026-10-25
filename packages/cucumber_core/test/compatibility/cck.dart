@@ -10,9 +10,15 @@ import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 import 'samples.dart';
 
 /// Samples that cannot pass yet, with the reason (design §10).
+///
+/// docs/compatibility.md lists them with the full justification, and
+/// packages/cucumber/test/compatibility_report_test.dart keeps it in step.
 const Map<String, String> skippedSamples = {
-  'markdown': 'cucumber_gherkin has no Gherkin-in-Markdown support',
-  'test-run-exception': "depends on fake-cucumber's --error switch",
+  'markdown':
+      'cucumber_gherkin has no Gherkin-in-Markdown support '
+      '(docs/compatibility.md)',
+  'test-run-exception':
+      "depends on fake-cucumber's --error switch (docs/compatibility.md)",
 };
 
 /// The directory holding the synced samples.

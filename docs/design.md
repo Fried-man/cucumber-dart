@@ -1,7 +1,7 @@
 # cucumber-dart design
 
 - **Status:** Draft. The direction is agreed. Items marked *(Proposed)* are still open for review.
-- **Last updated:** 2026-10-23
+- **Last updated:** 2026-10-25
 - **Decision log:** [`docs/decisions/`](decisions/README.md)
 
 This document describes how cucumber-dart becomes a production-grade Cucumber implementation for Dart that
@@ -1050,7 +1050,7 @@ than a rewrite.
   - Each sample has its own Dart glue (equivalent to the sample's reference `.ts` file).
   - The harness runs the core `SerialHost` with incrementing IDs and compares the emitted messages with the
     sample's `.ndjson`.
-  - A subset also runs through the real `dart test` host as an integration check.
+  - Every sample that is not skipped also runs through the real `dart test` host as an integration check.
   - Sample arguments are translated: `--retry 2` → `retry: 2`, `--order reverse` → `order: 'reverse'`.
 - **Normalisation:**
   - IDs are remapped to canonical IDs in order of first appearance, then compared exactly. This also checks that
@@ -1075,6 +1075,9 @@ than a rewrite.
   - `test-run-exception`: depends on fake-cucumber's `--error` switch.
 
   The target is all other **47** samples.
+- **Report.** [`docs/compatibility.md`](compatibility.md) lists every sample with its result through each host and
+  justifies each skip. `packages/cucumber/test/compatibility_report_test.dart` fails when it no longer matches the
+  samples or the skip lists the two harnesses use.
 
 ---
 
@@ -1162,12 +1165,11 @@ workaround lives in `cucumber_core`, not in a fork.
 | **M9** | `integration_test` on device | Device run producing reports |
 | **M10 Upstreaming** | Remaining expressions PRs (§11); tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
 
-**Status (2026-10-23):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
+**Status (2026-10-25):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
 `SerialHost` (`packages/cucumber_core/test/compatibility/`), and the tag-expression conformance suite is green. M3
 is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
-Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and 46 CCK
-samples pass through the real host (`fixtures/cck`); `empty` is left out because it declares no tests, so nothing
-is written (§6). M5 (reports) is complete: `cucumber_ci_environment` (sets `meta.ci` in the `dart test` host) and
+Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and the same 47 CCK
+samples pass through the real host (`fixtures/cck`). M5 (reports) is complete: `cucumber_ci_environment` (sets `meta.ci` in the `dart test` host) and
 `cucumber_query` are implemented, and their upstream conformance suites are green (§9). The `summary` plugin (§8.2)
 is implemented on `cucumber_query`: unit tests cover its formatter (including retry, undefined, ambiguous, pending,
 an empty run and every CCK sample's messages), and the end-to-end tests check what it prints through `dart test`.
@@ -1193,8 +1195,13 @@ waits for its workspace dependencies. API docs are done: every public library ha
 example, and `package:cucumber/cucumber.dart` introduces the whole API it re-exports from `cucumber_core`. The
 `api-docs` CI job runs `dart doc --validate-links` for each package and fails on any warning. It also requires the
 library doc comments, because dartdoc no longer reports missing ones. The CI matrix was already in place: the minimum
-SDK (3.8.0) and 3.12.0 on Linux, and 3.12.0 on macOS and Windows. Docs, performance and the published CCK report
-remain.
+SDK (3.8.0) and 3.12.0 on Linux, and 3.12.0 on macOS and Windows. The CCK report is published:
+[`docs/compatibility.md`](compatibility.md) lists every sample of CCK 31.0.0 with its result through `SerialHost`
+and through `dart test` (47 of 49 each, the M6 target) and justifies each skip (§10): `markdown` and
+`test-run-exception` for both hosts, and none only for `dart test`. `empty`, which had been left out of the
+`dart test` run, passes there too. A test in `package:cucumber` fails when the report no longer matches the samples
+or the skip lists that the harnesses use, so the CI test job keeps it current. The READMEs of `cucumber_core`,
+`cucumber` and `cucumber_compatibility_kit` link to it. Docs and performance remain.
 
 ### 14.1 Publishing
 
