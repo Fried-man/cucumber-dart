@@ -1,0 +1,11 @@
+# Applies when no profile is named.
+default:
+  tags: not @wip
+  plugins:
+    - message:build/cucumber/messages.ndjson
+    - html:build/cucumber/report.html
+    - summary
+
+# CUCUMBER_PROFILE=wip dart test
+wip:
+  tags: '@wip'

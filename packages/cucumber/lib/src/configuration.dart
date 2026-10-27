@@ -324,6 +324,21 @@ final class ConfigurationFile {
   }
 }
 
+/// The options a cucumber.yaml profile can set (design §4.9).
+const Set<String> profileOptionNames = {
+  'features',
+  'tags',
+  'names',
+  'retry',
+  'order',
+  'dryRun',
+  'worldParameters',
+  'plugins',
+  'suiteName',
+  'mapTags',
+  'scenarioTimeout',
+};
+
 final class _ProfileReader {
   _ProfileReader(this.path, this.name, this.map);
 
@@ -331,19 +346,7 @@ final class _ProfileReader {
   final String name;
   final YamlMap map;
 
-  static const _keys = {
-    'features',
-    'tags',
-    'names',
-    'retry',
-    'order',
-    'dryRun',
-    'worldParameters',
-    'plugins',
-    'suiteName',
-    'mapTags',
-    'scenarioTimeout',
-  };
+  static const _keys = profileOptionNames;
 
   Never _error(String key, String problem) =>
       throw CucumberConfigurationException(

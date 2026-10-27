@@ -1,0 +1,18 @@
+# Applies when no profile is named.
+default:
+  tags: not @wip
+  worldParameters:
+    currency: EUR
+  plugins:
+    - message:build/cucumber/messages.ndjson
+    - html:build/cucumber/report.html
+    - summary
+
+# Added on CI: CUCUMBER_PROFILE=default,ci
+ci:
+  tags: not @slow
+  scenarioTimeout: 2m
+
+# Only the scenarios in progress: CUCUMBER_PROFILE=wip
+wip:
+  tags: '@wip'

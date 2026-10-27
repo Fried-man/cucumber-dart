@@ -20,17 +20,35 @@ final class SourceReference {
   /// traces are unavailable on the current platform).
   static SourceReference? capture() {
     try {
-      final frames = Trace.current(1).frames;
-      for (final frame in frames) {
-        if (frame.isCore || internalPackages.contains(frame.package)) continue;
-        final line = frame.line;
-        if (line == null) continue;
-        return SourceReference(displayUri(frame.uri), line, frame.column);
+      final trace = StackTrace.current.toString();
+      // Every glue value is captured, and parsing a whole trace takes about
+      // a millisecond, most of glue loading (docs/performance.md). The user
+      // frame is usually within the first few, so VM traces (`#0 …` lines)
+      // are parsed one frame at a time.
+      if (trace.startsWith('#')) {
+        for (final line in trace.split('\n')) {
+          if (!line.startsWith('#')) continue;
+          final reference = _userFrame(Frame.parseVM(line));
+          if (reference != null) return reference;
+        }
+        return null;
+      }
+      for (final frame in Trace.parse(trace).frames) {
+        final reference = _userFrame(frame);
+        if (reference != null) return reference;
       }
     } on Object {
       // Stack traces are best effort.
     }
     return null;
+  }
+
+  /// The reference to [frame], or `null` if it is not user code.
+  static SourceReference? _userFrame(Frame frame) {
+    if (frame.isCore || internalPackages.contains(frame.package)) return null;
+    final line = frame.line;
+    if (line == null) return null;
+    return SourceReference(displayUri(frame.uri), line, frame.column);
   }
 
   /// The URI of the source file. `file:` URIs below the current directory are

@@ -1,7 +1,7 @@
 # cucumber-dart design
 
 - **Status:** Draft. The direction is agreed. Items marked *(Proposed)* are still open for review.
-- **Last updated:** 2026-10-25
+- **Last updated:** 2026-10-27
 - **Decision log:** [`docs/decisions/`](decisions/README.md)
 
 This document describes how cucumber-dart becomes a production-grade Cucumber implementation for Dart that
@@ -95,7 +95,7 @@ This is a pub workspace with Dart SDK `^3.8.0`, which is the minimum required by
 ```
 cucumber-dart/
 ├─ pubspec.yaml                      workspace root (publish_to: none)
-├─ docs/                             this design + decision log
+├─ docs/                             this design, decision log, user guide, compatibility and performance reports
 └─ packages/
    ├─ cucumber_core/                 runner-agnostic engine + public glue API (pure Dart)
    ├─ cucumber/                      dart test host, discovery, config, outputs, merge CLI; re-exports the core API
@@ -911,6 +911,10 @@ The following are planned after v1:
    - IDs become file names by percent-encoding everything except ASCII letters, digits, `-`, `_` and
      (not leading) `.`, so `checkout/cart_test` is stored as `checkout%2Fcart_test.ndjson`.
    - The part and its manifest are created when the first message arrives.
+   - The part is written in chunks of 64 Ki characters, and flushed after `testRunStarted`, each
+     `testCaseFinished` and `testRunHookFinished`, and `testRunFinished`. So a part that is still being written ends
+     with whole test cases, and a run in progress changes on disk as its scenarios finish. Writing every message
+     separately made the reports the slowest part of a large run ([`performance.md`](performance.md)).
 2. **Automatic merge.** In `tearDownAll`, after closing its part (as the last plugin to close), the suite:
    1. takes an exclusive lock on `<outputDir>/.cucumber/merge.lock`;
    2. merges the parts of the same `runId`;
@@ -1165,7 +1169,7 @@ workaround lives in `cucumber_core`, not in a fork.
 | **M9** | `integration_test` on device | Device run producing reports |
 | **M10 Upstreaming** | Remaining expressions PRs (§11); tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
 
-**Status (2026-10-25):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
+**Status (2026-10-27):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
 `SerialHost` (`packages/cucumber_core/test/compatibility/`), and the tag-expression conformance suite is green. M3
 is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
 Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and the same 47 CCK
@@ -1201,7 +1205,21 @@ and through `dart test` (47 of 49 each, the M6 target) and justifies each skip (
 `test-run-exception` for both hosts, and none only for `dart test`. `empty`, which had been left out of the
 `dart test` run, passes there too. A test in `package:cucumber` fails when the report no longer matches the samples
 or the skip lists that the harnesses use, so the CI test job keeps it current. The READMEs of `cucumber_core`,
-`cucumber` and `cucumber_compatibility_kit` link to it. Docs and performance remain.
+`cucumber` and `cucumber_compatibility_kit` link to it. The user guide is in [`docs/guide/`](guide/README.md):
+getting started, writing glue, configuration (every option in code, `cucumber.yaml` and `CUCUMBER_*` variables),
+reports (plugins, merging across test files and CI shards) and the mapping to `package:test` (§6). The root README and
+those of `cucumber` and `cucumber_core` link to it. Its examples are excerpts of two fixture projects,
+`fixtures/getting_started` and `fixtures/guide`, and `test/docs_test.dart` checks every code block: excerpts against
+their sources, commands by running them (and the output shown), and the install snippet and CI workflow by checks of
+their own. It also checks that the configuration and `cucumber:merge` references list every option, and that the
+links of the documentation and the READMEs resolve. Performance is measured by `packages/cucumber/benchmark/` on a
+generated suite of 300 features, 3,000 scenarios and 10,800 steps; [`performance.md`](performance.md) records the
+results and how to rerun them, and a smoke test runs the benchmark on a tiny suite. It found two clear hotspots, both
+fixed. Reports and report parts were written one message at a time (§8.4): the reports added 9.3 s to a 2.6 s
+`dart test` run, and now add 1.4 s. And each glue value parsed the whole stack trace for its source reference: glue
+loading took 110 ms, and now takes 14 ms. With the JSON reporter that IDEs use, `package:test` itself records a stack
+trace for every test and group, which costs seconds on large suites; that is documented, not fixable here. M6 is
+complete.
 
 ### 14.1 Publishing
 
@@ -1224,7 +1242,8 @@ Publishing order, dependencies first:
   `cucumber` is left out because its dry run passes but proves nothing about its real blocker.
 - **Until step 3.** Users depend on `cucumber` from Git, overriding its four workspace dependencies with Git
   dependencies as well (`packages/cucumber/README.md`).
-- **Contents.** Each archive has the README, CHANGELOG, LICENSE, `example/`, `lib/`, `bin/`, `test/` and `tool/`.
+- **Contents.** Each archive has the README, CHANGELOG, LICENSE, `example/`, `lib/`, `bin/`, `test/` and `tool/`
+  (and `cucumber`'s `benchmark/`, which a test imports).
   `.pubignore` leaves out `build/`, the synced upstream test data (`testdata/` of `cucumber_ci_environment` and
   `cucumber_query`, and `test/tag_expressions/testdata/` of `cucumber_core`) and `cucumber`'s `fixtures/`, which
   are workspace packages. The archives are 11–85 KB. `cucumber_html_formatter` is 293 KB, because its payload,

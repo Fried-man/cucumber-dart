@@ -64,7 +64,9 @@ reasons for the skips. The private tag-expression evaluator passes the shared
 [cucumber/tag-expressions][tag-expressions] test data.
 
 See the [design](https://github.com/Fried-man/cucumber-dart/blob/main/docs/design.md) for the execution semantics,
-the messages and the mapping to hosts.
+the messages and the mapping to hosts. The [guide][guide] is for the people who write features and glue: its
+[Writing glue][writing-glue] page covers the glue API of this package. [Performance][performance] has timings of
+glue loading, `SuitePlan` creation and `SerialHost` runs on a large suite.
 
 [cucumber-dart]: https://github.com/Fried-man/cucumber-dart
 [cucumber]: https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber
@@ -72,3 +74,6 @@ the messages and the mapping to hosts.
 [cck]: https://github.com/cucumber/compatibility-kit
 [compatibility]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/compatibility.md
 [tag-expressions]: https://github.com/cucumber/tag-expressions
+[guide]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/README.md
+[writing-glue]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/writing-glue.md
+[performance]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/performance.md

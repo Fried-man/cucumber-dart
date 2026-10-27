@@ -8,6 +8,7 @@ import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 import 'package:path/path.dart' as p;
 import 'package:stack_trace/stack_trace.dart';
 
+import 'buffered_sink.dart';
 import 'merge.dart';
 import 'merge_lock.dart';
 
@@ -184,7 +185,7 @@ final class MergedReportPlugin implements Plugin {
   /// The outputs, without duplicates.
   final List<ReportOutput> outputs;
 
-  IOSink? _part;
+  BufferedFileSink? _part;
   String? _suiteId;
 
   /// The suite ID of the part, once it has been created.
@@ -192,12 +193,17 @@ final class MergedReportPlugin implements Plugin {
 
   @override
   void onMessage(messages.Envelope envelope) {
-    (_part ??= _openPart())
+    final part = _part ??= _openPart();
+    part
       ..write(messages.envelopeToJsonString(envelope))
       ..write('\n');
+    // Other suites may merge this part while it is being written. Flushing
+    // after each test case (rather than after each message, which made writing
+    // the part one of the slowest parts of a run) keeps it current on disk.
+    if (endsUnit(envelope)) part.flush();
   }
 
-  IOSink _openPart() {
+  BufferedFileSink _openPart() {
     Directory(merging.partsDirectory).createSync(recursive: true);
     for (var n = 1; ; n++) {
       final suiteId = n == 1 ? merging.suiteId : '${merging.suiteId}#$n';
@@ -216,7 +222,7 @@ final class MergedReportPlugin implements Plugin {
           'outputs': [for (final output in outputs) output.key],
         }),
       );
-      return file.openWrite();
+      return BufferedFileSink.open(file);
     }
   }
 
@@ -396,7 +402,7 @@ Future<void> writeReport(
   file.parent.createSync(recursive: true);
   final temporary = File('${output.path}.$pid.tmp');
   try {
-    final sink = temporary.openWrite();
+    final sink = BufferedFileSink.open(temporary);
     try {
       switch (output.format) {
         case ReportFormat.message:

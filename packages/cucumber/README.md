@@ -11,6 +11,8 @@ It is built on the official Cucumber components for Dart ([`cucumber_gherkin`][g
 > **Status: pre-release.** `cucumber` is not on pub.dev yet, because it depends on packages that are not published
 > yet (see [Publishing][publishing]). Until then, depend on it from Git, as shown below.
 
+The [guide][guide] explains how to write, configure and run features, step by step.
+
 ## Install
 
 ```yaml
@@ -96,7 +98,8 @@ run and debug, `--name`, sharding and coverage work as for any other test. Gherk
 (declare them in `dart_test.yaml` to avoid warnings), and test locations point at the `.feature` lines. The `summary`
 plugin prints the snippets for undefined steps.
 
-The [example](https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber/example) is a complete project.
+The [example](https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber/example) is a complete project,
+and [Getting started][getting-started] builds one step by step.
 
 ## Glue
 
@@ -110,7 +113,8 @@ The [example](https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucu
 
 Step and hook bodies may take the World as their first parameter, followed by the step's parameters and its data
 table or doc string. The shapes and types are checked when the glue loads. `pending()` and `skip()` mark a step as
-pending or skipped, and `attach`, `log` and `link` add attachments to the report.
+pending or skipped, and `attach`, `log` and `link` add attachments to the report. [Writing glue][writing-glue] covers
+every glue type.
 
 ## Configuration
 
@@ -135,6 +139,8 @@ CUCUMBER_FILTER_TAGS=@smoke dart test
 CUCUMBER_FEATURES=features/belly.feature:3 dart test
 ```
 
+[Configuration][configuration] lists every option, and how the sources combine.
+
 ## Reports
 
 - `message:<path>`: the Cucumber Messages as NDJSON.
@@ -148,8 +154,14 @@ collect each shard's `build/.cucumber/parts/<runId>/` directory and run:
 dart run cucumber:merge -p html:build/cucumber/report.html shard-1/ shard-2/
 ```
 
+[Reports][reports] explains the outputs, custom plugins and merging, with a CI workflow for shards.
+
 ## More
 
+- [Guide][guide]: [getting started][getting-started], [writing glue][writing-glue], [configuration][configuration],
+  [reports][reports] and [running with `dart test`][package-test]
+- [Performance](https://github.com/Fried-man/cucumber-dart/blob/main/docs/performance.md): timings on a large suite,
+  and how to measure them
 - [Design](https://github.com/Fried-man/cucumber-dart/blob/main/docs/design.md) and
   [decision log](https://github.com/Fried-man/cucumber-dart/tree/main/docs/decisions)
 - [Compatibility report][compatibility]: every Cucumber Compatibility Kit sample, its result and the skip list
@@ -162,3 +174,9 @@ dart run cucumber:merge -p html:build/cucumber/report.html shard-1/ shard-2/
 [cck]: https://github.com/cucumber/compatibility-kit
 [compatibility]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/compatibility.md
 [publishing]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/design.md#141-publishing
+[guide]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/README.md
+[getting-started]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/getting-started.md
+[writing-glue]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/writing-glue.md
+[configuration]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/configuration.md
+[reports]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/reports.md
+[package-test]: https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/package-test.md

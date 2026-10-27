@@ -5,6 +5,7 @@ import 'package:cucumber_html_formatter/cucumber_html_formatter.dart';
 import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 import 'package:path/path.dart' as p;
 
+import 'buffered_sink.dart';
 import 'configuration.dart';
 import 'report_merging.dart';
 import 'summary.dart';
@@ -14,7 +15,9 @@ import 'summary.dart';
 /// `message:<path>`.
 ///
 /// The file is created (with its parent directories) when the first message
-/// arrives, so a suite whose tests are all filtered out writes nothing.
+/// arrives, so a suite whose tests are all filtered out writes nothing. The
+/// messages are written in chunks, at the latest when a test case or test-run
+/// hook finishes, and the file is complete once the plugin is closed.
 final class NdjsonPlugin implements Plugin {
   /// Creates a plugin writing to [path].
   NdjsonPlugin(this.path);
@@ -22,7 +25,7 @@ final class NdjsonPlugin implements Plugin {
   /// The output file.
   final String path;
 
-  IOSink? _sink;
+  BufferedFileSink? _sink;
 
   @override
   void onMessage(messages.Envelope envelope) {
@@ -30,6 +33,7 @@ final class NdjsonPlugin implements Plugin {
     sink
       ..write(messages.envelopeToJsonString(envelope))
       ..write('\n');
+    if (endsUnit(envelope)) sink.flush();
   }
 
   @override
@@ -58,7 +62,7 @@ final class HtmlPlugin implements Plugin {
   /// The output file.
   final String path;
 
-  IOSink? _sink;
+  BufferedFileSink? _sink;
   MessagesToHtmlWriter? _writer;
 
   @override
@@ -80,10 +84,10 @@ final class HtmlPlugin implements Plugin {
   String toString() => 'html:$path';
 }
 
-IOSink _open(String path) {
+BufferedFileSink _open(String path) {
   final file = File(path);
   file.parent.createSync(recursive: true);
-  return file.openWrite();
+  return BufferedFileSink.open(file);
 }
 
 /// The plugin specifications that can be used in code, `cucumber.yaml` and

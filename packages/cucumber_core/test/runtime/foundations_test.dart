@@ -1,6 +1,7 @@
 import 'package:cucumber_core/engine.dart';
 import 'package:cucumber_core/src/runtime/ids.dart' show fnv64;
 import 'package:cucumber_messages/cucumber_messages.dart' as messages;
+import 'package:stack_trace/stack_trace.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -108,6 +109,17 @@ void main() {
       expect(glue.source, isNotNull);
       expect(glue.source!.uri, endsWith('foundations_test.dart'));
       expect(glue.source!.line, greaterThan(0));
+    });
+
+    test('records the line of the closest user frame', () {
+      final line = Trace.current().frames.first.line!;
+      final direct = Given('x', () {});
+      Glue helper() => When('y', () {});
+      final viaHelper = helper();
+      expect(direct.source!.uri, 'test/runtime/foundations_test.dart');
+      expect(direct.source!.line, line + 1);
+      expect(direct.source!.column, isNotNull);
+      expect(viaHelper.source!.line, line + 2);
     });
   });
 }
