@@ -17,12 +17,31 @@ import 'merge_lock.dart';
 const String outputDirectoryName = 'build';
 
 /// The run ID that correlates the report parts of one run (design §8.4):
-/// `CUCUMBER_RUN_ID` from [environment] if it is set, otherwise the ID of
-/// this process ([processId], default: [pid]), which every isolate started
-/// by one `dart test` invocation shares.
+///
+/// 1. `CUCUMBER_RUN_ID` from [environment], if it is set;
+/// 2. under `flutter test` (`FLUTTER_TEST` is set), `flutter-` and a hash of
+///    `FONTCONFIG_FILE`: `flutter test` runs each test file in its own
+///    process, but gives all of them the same font configuration file, which
+///    it creates in a new temporary directory for each run;
+/// 3. otherwise the ID of this process ([processId], default: [pid]), which
+///    every isolate started by one `dart test` invocation shares.
 String resolveRunId(Map<String, String> environment, {int? processId}) {
   final configured = environment['CUCUMBER_RUN_ID']?.trim() ?? '';
-  return configured.isNotEmpty ? configured : '${processId ?? pid}';
+  if (configured.isNotEmpty) return configured;
+  final fontConfig = environment['FONTCONFIG_FILE']?.trim() ?? '';
+  if (environment.containsKey('FLUTTER_TEST') && fontConfig.isNotEmpty) {
+    return 'flutter-${_fnv1a32(fontConfig).toRadixString(16).padLeft(8, '0')}';
+  }
+  return '${processId ?? pid}';
+}
+
+/// The 32-bit FNV-1a hash of the UTF-8 bytes of [text].
+int _fnv1a32(String text) {
+  var hash = 0x811c9dc5;
+  for (final byte in utf8.encode(text)) {
+    hash = ((hash ^ byte) * 0x01000193) & 0xffffffff;
+  }
+  return hash;
 }
 
 /// The suite ID of the test file that declares a suite: the path of the file

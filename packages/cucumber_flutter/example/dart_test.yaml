@@ -1,0 +1,4 @@
+# Gherkin tags become test tags. Declaring them here avoids warnings about
+# undeclared tags.
+tags:
+  smoke:

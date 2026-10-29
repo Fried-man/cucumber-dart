@@ -1,7 +1,7 @@
 # cucumber-dart design
 
 - **Status:** Draft. The direction is agreed. Items marked *(Proposed)* are still open for review.
-- **Last updated:** 2026-10-27
+- **Last updated:** 2026-10-29
 - **Decision log:** [`docs/decisions/`](decisions/README.md)
 
 This document describes how cucumber-dart becomes a production-grade Cucumber implementation for Dart that
@@ -43,7 +43,7 @@ components that already have Dart ports:
 | Item | Plan |
 |---|---|
 | Standalone CLI runner | A thin facade may follow later (ADR-0001) |
-| Flutter adapters (`testWidgets`, on-device `integration_test`) | Designed for now, built after v1 (ADR-0004) |
+| Flutter adapters (`testWidgets`, on-device `integration_test`) | Built after v1 (ADR-0004): widget tests in M7 (ADR-0021), `integration_test` in M9 |
 | Annotation + `build_runner` codegen | Designed for now, built after v1 (ADR-0002) |
 | JUnit XML, legacy Cucumber JSON, pretty/progress console, rerun output | After v1 (ADR-0009) |
 | Gherkin in Markdown (`.feature.md`) | Needs Markdown support in `cucumber_gherkin` first |
@@ -55,7 +55,7 @@ components that already have Dart ports:
 
 | | cucumber-js 13.3 | cucumber-jvm 8.0 | cucumber-ruby 11.1+ | godog 0.16 | **cucumber-dart** |
 |---|---|---|---|---|---|
-| Host | Own CLI plus programmatic API | JUnit Platform engine (strategic) plus CLI | Own CLI | `go test` subtests (CLI deprecated) | `dart test` (later `flutter test`) plus a thin CLI later |
+| Host | Own CLI plus programmatic API | JUnit Platform engine (strategic) plus CLI | Own CLI | `go test` subtests (CLI deprecated) | `dart test` and `flutter test` (widget tests), plus a thin CLI later |
 | Step API | Global `Given(...)`, `this` = World | Annotations; lambdas (fragile) | Global DSL blocks run in the World | `ctx.Step(regex, func)` via reflection | Explicit glue values (codegen later) |
 | Expressions | Cucumber + regex | Cucumber + regex | Cucumber + regex | Regex only | Cucumber + regex |
 | Scenario state | World per attempt | DI containers | World per scenario | `context.Context` or closures | Typed World per attempt |
@@ -91,6 +91,7 @@ components that already have Dart ports:
 ### 3.1 Packages
 
 This is a pub workspace with Dart SDK `^3.8.0`, which is the minimum required by `cucumber_gherkin`.
+`cucumber_flutter` is the exception: it needs the Flutter SDK, so it is a pub workspace of its own (ADR-0021).
 
 ```
 cucumber-dart/
@@ -103,7 +104,8 @@ cucumber-dart/
    ├─ cucumber_html_formatter/       [M5] Dart wrapper around the prebuilt @cucumber/html-formatter assets
    ├─ cucumber_ci_environment/       [M5] port of cucumber/ci-environment (meta.ci)
    ├─ cucumber_query/                [M5] port of cucumber/query (summary, merge, future formatters)
-   ├─ cucumber_flutter/              [post-v1] flutter_test / integration_test host
+   ├─ cucumber_flutter/              [M7] flutter_test widget-test host; outside the workspace, with its
+   │                                 example and fixtures in a workspace of its own (ADR-0021); later integration_test
    └─ cucumber_builder/              [post-v1] annotations + build_runner codegen
 ```
 
@@ -114,7 +116,7 @@ cucumber ─────► cucumber_core ─────► cucumber_gherkin (p
    ├──► test (package:test)
    └──► cucumber_html_formatter, cucumber_ci_environment, cucumber_query (workspace)
 
-cucumber_flutter ──► cucumber_core, flutter_test            (post-v1)
+cucumber_flutter ──► cucumber (path), flutter_test          (M7, flutter pub get)
 cucumber_builder ──► cucumber_core, build, source_gen       (post-v1)
 ```
 
@@ -128,8 +130,13 @@ cucumber_builder ──► cucumber_core, build, source_gen       (post-v1)
   - Each uses the name the Cucumber organisation would publish it under, with `publish_to: none`.
   - Once the upstream package is published, we swap the workspace package for the hosted one (ADR-0005).
   - The publishing order and what blocks each package are in §14.1.
-- **What users depend on.** Dart users depend on `cucumber`; Flutter users will depend on `cucumber_flutter`.
-  `package:cucumber/cucumber.dart` re-exports the full core API, so users never import `cucumber_core` directly.
+- **What users depend on.** Dart users depend on `cucumber`; Flutter users depend on `cucumber_flutter`.
+  `package:cucumber/cucumber.dart` re-exports the full core API, so users never import `cucumber_core` directly, and
+  `package:cucumber_flutter/cucumber_flutter.dart` re-exports `package:cucumber`'s (except `cucumber()` and
+  `CucumberSuite`).
+- **Flutter packages stay out of the root workspace** (ADR-0021). The root `analysis_options.yaml` excludes them,
+  the CI test loop skips packages that depend on the Flutter SDK, and a `flutter` CI job resolves, analyzes, tests
+  and documents them.
 
 ### 3.2 Runtime pipeline
 
@@ -171,7 +178,7 @@ Everything up to step 6 runs synchronously inside `main()`:
 | `UserCodeRunner` | Invoke user functions in guarded zones: parameter mapping, async, timeouts, uncaught-error capture | js `user_code_runner` |
 | `MessageBus` | Ordered `Envelope` delivery to plugins; buffering until the run starts | js event broadcaster |
 | `SnippetGenerator` | Dart snippets via `CucumberExpressionGenerator` | js snippet builder |
-| `SuitePlan` + `TestHost` | Tree of nodes that hosts declare. `SerialHost` executes a plan directly; it is used by the CCK harness and a future CLI | cucumber-jvm `CucumberExecutionContext` |
+| `SuitePlan` + `TestHost` | Tree of nodes that hosts declare. `SerialHost` executes a plan directly; it is used by the CCK harness and a future CLI. Hosts can pass `afterUserCode`, which runs after each step and hook body and fails it by throwing (the Flutter host rethrows the exceptions Flutter caught, ADR-0021). Once the run has started, `runPickle` only uses its caller's zone, so it can run inside `testWidgets`' fake-async zone | cucumber-jvm `CucumberExecutionContext` |
 | `Plugin` | `onMessage(Envelope)`, `close()` | js formatter plugins |
 
 `cucumber_core` has two public libraries:
@@ -185,7 +192,8 @@ Everything up to step 6 runs synchronously inside `main()`:
 
 ## 4. Public API
 
-The canonical import is `package:cucumber/cucumber.dart` (Flutter later: `package:cucumber_flutter/...`).
+The canonical import is `package:cucumber/cucumber.dart` (Flutter widget tests:
+`package:cucumber_flutter/cucumber_flutter.dart`, §12).
 
 ### 4.1 At a glance
 
@@ -543,8 +551,9 @@ ci:
 | `CUCUMBER_WORLD_PARAMETERS` | JSON object |
 | `CUCUMBER_RUN_ID` | Correlates report parts across isolates or machines (§8.4) |
 
-The names follow cucumber-jvm's property naming (`cucumber.filter.tags` → `CUCUMBER_FILTER_TAGS`). Flutter devices
-cannot read the environment, so `cucumber_flutter` will read the same keys from `--dart-define`.
+The names follow cucumber-jvm's property naming (`cucumber.filter.tags` → `CUCUMBER_FILTER_TAGS`). Widget tests run
+on the host under `flutter test`, which passes the environment on, so `cucumber_flutter` reads it as `cucumber` does.
+Flutter devices cannot read the environment, so on-device runs (M9) will read the same keys from `--dart-define`.
 
 ---
 
@@ -683,6 +692,9 @@ Each group and test gets a `TestLocation(featureFileUri, line, column)`. The JSO
 straight to the `.feature` line.
 
 Flutter 3.44's `flutter_test` wrappers do not forward `location`, so that needs an upstream Flutter change (§12).
+Under `cucumber_flutter`, groups keep their `.feature` locations (they are declared with `package:test`'s `group`,
+which shares `flutter_test`'s declarer), but each scenario's `testWidgets` points at the `cucumberWidgets` call in
+the entry file. Failure messages still name the scenario's and the step's `feature:line`.
 
 ### Tags
 
@@ -786,7 +798,10 @@ resolution. (`DateTime.now()` can be as coarse as 15 ms on Windows, which gave q
 - Inside a scenario it is linked through `testCaseStartedId` and `testStepId`.
 - Inside a test-run hook it is linked through `testRunHookStartedId`.
 - The deprecated `Attachment.url`, `Attachment.source` and `Attachment.testRunStartedId` are never set.
-- The `cucumber` host adds `attachFile(path, {mediaType, fileName})`.
+- The `cucumber` host adds `attachFile(path, {mediaType, fileName})` (it needs `dart:io`, so it is not in the core).
+  It reads the file synchronously when it is called and attaches its bytes as `BASE64`. `mediaType` defaults to the
+  type of the file's extension (a table of common image, video, audio, text and document types), else
+  `application/octet-stream`; `fileName` defaults to the file's base name. It works wherever `attach` does.
 - `externalAttachment` (for large files) will come after v1.
 
 ### 7.5 Suggestions and snippets
@@ -903,6 +918,9 @@ The following are planned after v1:
    - `outputDir` is `<packageRoot>/build`.
    - `runId` is `CUCUMBER_RUN_ID` if set. Otherwise it is the process id, which all isolates started by one
      `dart test` invocation share.
+   - `flutter test` runs each test file in its own process. There (`FLUTTER_TEST` is set), without
+     `CUCUMBER_RUN_ID`, `runId` is `flutter-` plus the 32-bit FNV-1a hash of `FONTCONFIG_FILE`, which
+     `flutter test` creates in a new temporary directory for each run and passes to every test process (ADR-0021).
    - `suiteId` is the `suiteName` if set. Otherwise it is the test file's path relative to `test/`, without
      `.dart` (`test/checkout/cart_test.dart` → `checkout/cart_test`), found from the `main` on the stack when the
      suite is declared. If another suite of the run already has the ID (several suites in one file, or the same
@@ -1129,18 +1147,30 @@ workaround lives in `cucumber_core`, not in a fork.
 
 ## 12. Flutter roadmap (post-v1, ADR-0004)
 
-- **Widget tests.**
-  - `cucumber_flutter` adds `cucumberWidgets(...)`, which declares `testWidgets`.
-  - `FlutterWorld` exposes the `WidgetTester`.
-  - Widget tests run on the host VM, so feature files load from disk as in pure Dart.
+- **Widget tests (M7, done; ADR-0021).**
+  - `cucumber_flutter` adds `cucumberWidgets(...)` and `CucumberWidgetSuite<W>(CucumberOptions).declare()`, with
+    the options of `cucumber()`. They call `declareCucumberSuite` from `package:cucumber/hosting.dart`, which is
+    `CucumberSuite.declare` with three hooks for hosts: the default World, the declaration of each scenario's test,
+    and `afterUserCode` (§3.3). Configuration, discovery, groups, `setUpAll`/`tearDownAll`, outcomes (§6) and
+    reports (§8) are therefore those of the `dart test` host.
+  - Each scenario is a `testWidgets` test. Its body runs the pickle with the `WidgetTester` in a zone value.
+  - `FlutterWorld` (a mixin class implementing `World` by delegation, so a World can extend it or mix it in)
+    exposes the `WidgetTester` as `tester`. Outside a scenario (`BeforeAll`, `AfterAll`) it throws a `StateError`.
+    Without a `world`, the World type is `FlutterWorld` and each attempt gets a `DefaultFlutterWorld`.
+  - After each step and hook body, the exception Flutter caught during it (`WidgetTester.takeException()`) is
+    rethrown, so that step or hook fails. Otherwise the report would say PASSED while the binding fails the test.
+  - Widget tests run on the host VM, so feature files load from disk and the environment is read as in pure Dart.
+  - Retries reuse the scenario's tester and widget tree, step timeouts count fake-async time, and `BeforeAll`/
+    `AfterAll` run outside the widget tests. These are documented in the guide (`docs/guide/flutter.md`).
 - **`integration_test` on a device.**
   - A builder generates `features.g.dart` containing the feature sources, so declaration stays synchronous and needs
     no file access.
   - Configuration comes from `--dart-define`.
   - Messages are sent back to the host as framed NDJSON on stdout, or via `reportData` under `flutter drive`.
   - A host-side collector writes the reports.
-- **Upstream.** Propose `location:` support in the `flutter_test` wrappers so Flutter tests can link to `.feature`
-  lines.
+- **Upstream.** Propose `location:` support in the `flutter_test` wrappers (`test`, `group` and `testWidgets`) so
+  Flutter tests can link to `.feature` lines. Until then, scenarios under `cucumberWidgets` point at the entry file
+  (§6).
 
 ## 13. Codegen roadmap (post-v1, ADR-0002)
 
@@ -1164,12 +1194,12 @@ workaround lives in `cucumber_core`, not in a fork.
 | **M4 Typed tables** | `DataTableType` and `DocStringType` registries, conversions, `diff` | Ported cucumber-jvm `datatable` behaviour tests |
 | **M5 Reports** | `cucumber_query`, `cucumber_ci_environment`, `cucumber_html_formatter`, summary and snippets, automatic merge and merge CLI | Port conformance suites green; merged HTML across 3 entry files |
 | **M6 v1 hardening** | Docs, examples, API docs, CI matrix (minimum SDK and stable; Linux, macOS, Windows), performance, published CCK report and skip list | 47/49 CCK; dry-run publish of each package |
-| **M7** | `cucumber_flutter`: widget tests | Example Flutter app |
+| **M7 Widget tests** | `cucumber_flutter`: `cucumberWidgets`, `FlutterWorld`, Flutter errors failing steps, reports merged under `flutter test`, `flutter` CI job, guide page (ADR-0021) | Example Flutter app run by `flutter test` |
 | **M8** | `cucumber_builder`: codegen | Example; compile-time checks |
 | **M9** | `integration_test` on device | Device run producing reports |
 | **M10 Upstreaming** | Remaining expressions PRs (§11); tag-expressions, ci-environment, query, html-formatter and compatibility-kit Dart ports; JUnit and pretty formatters; Dart support in the Cucumber language server; listing on cucumber.io | Published under `cucumber.io`; this repository switched to the hosted packages |
 
-**Status (2026-10-27):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
+**Status (2026-10-29):** M1, M2 and M4 are implemented in `cucumber_core`. 47 of 49 CCK samples pass through
 `SerialHost` (`packages/cucumber_core/test/compatibility/`), and the tag-expression conformance suite is green. M3
 is implemented in `package:cucumber` (entrypoint, configuration, discovery, `package:test` mapping, NDJSON plugin).
 Its end-to-end tests run `dart test` on `packages/cucumber/fixtures/e2e` and on the example project, and the same 47 CCK
@@ -1219,7 +1249,24 @@ fixed. Reports and report parts were written one message at a time (§8.4): the 
 `dart test` run, and now add 1.4 s. And each glue value parsed the whole stack trace for its source reference: glue
 loading took 110 ms, and now takes 14 ms. With the JSON reporter that IDEs use, `package:test` itself records a stack
 trace for every test and group, which costs seconds on large suites; that is documented, not fixable here. M6 is
-complete.
+complete. Before M7, `attachFile` (§7.4) was added to `package:cucumber`, with unit tests (encoding, defaults, test-run
+hooks, a missing file, outside a scenario) and a row in the guide's attachment table. M7 (widget tests) is complete
+(§12, ADR-0021). `packages/cucumber_flutter` is a Flutter package outside the root workspace, with its example app and
+`fixtures/e2e` in a workspace of its own. It is built on `package:cucumber/hosting.dart` (`declareCucumberSuite`,
+whose unit test covers the declarer, the default World and `afterUserCode`). It needed two core changes, both with
+unit tests: `SuitePlan.create(afterUserCode:)` (steps, step hooks, scenario and test-run hooks, failures, dry run),
+and `runPickle` staying in its caller's zone once the run has started (checked in a zone with its own microtask
+queue, as `testWidgets`' fake-async zone has). The run ID under `flutter test` (§8.4) has unit tests. In-process
+`flutter test` tests cover the tester in steps and hooks, one tester per scenario, the `StateError` in `BeforeAll`, a
+World that extends `FlutterWorld`, one that mixes it in, and the default World. The end-to-end tests run
+`flutter test` on `fixtures/e2e` and on the example app. They check every outcome, an exception thrown while building
+a widget failing its step, snippets with a `FlutterWorld`, group locations at the `.feature` lines (and test locations
+at the entry file), the summary of each suite, and, without `CUCUMBER_RUN_ID`, one run directory with a part per test
+file and one merged NDJSON and HTML report. They also check `--tags` and that the example app passes with its
+reports (the M7 exit criterion). The guide page [`guide/flutter.md`](guide/flutter.md) is excerpted from the example
+app, and `test/docs_test.dart` runs its `flutter` commands when the Flutter SDK is on the PATH. The `flutter` CI job
+(Flutter 3.44.1, the minimum) analyzes, tests and documents `cucumber_flutter` and runs that page's checks; the other
+jobs skip it.
 
 ### 14.1 Publishing
 
@@ -1237,23 +1284,26 @@ Publishing order, dependencies first:
 | 2 | `cucumber_ci_environment`, `cucumber_query`, `cucumber_html_formatter` | none | Dry run passes. To be published upstream by the Cucumber organisation (ADR-0005, M10), not from here | `none` |
 | 2 | `cucumber_compatibility_kit` | none | As above. Only ever a dev dependency, so it does not block step 3 | `none` |
 | 3 | `cucumber` | `cucumber_core`, `cucumber_ci_environment`, `cucumber_html_formatter`, `cucumber_query` | Blocked until all four are on pub.dev | `none` |
+| 4 | `cucumber_flutter` | `cucumber` (and its four) | Blocked until `cucumber` is on pub.dev. It depends on `cucumber` by path, which pub.dev rejects, so its dependency becomes `cucumber: ^0.0.1` when it is published | `none` |
 
 - **CI.** The `publish-dry-run` job runs `dart pub publish --dry-run` for steps 1 and 2, and warnings fail it.
-  `cucumber` is left out because its dry run passes but proves nothing about its real blocker.
+  `cucumber` and `cucumber_flutter` are left out because their real blockers are their dependencies, which a dry
+  run cannot check (and `cucumber_flutter`'s path dependency makes its dry run fail).
 - **Until step 3.** Users depend on `cucumber` from Git, overriding its four workspace dependencies with Git
   dependencies as well (`packages/cucumber/README.md`).
 - **Contents.** Each archive has the README, CHANGELOG, LICENSE, `example/`, `lib/`, `bin/`, `test/` and `tool/`
   (and `cucumber`'s `benchmark/`, which a test imports).
   `.pubignore` leaves out `build/`, the synced upstream test data (`testdata/` of `cucumber_ci_environment` and
-  `cucumber_query`, and `test/tag_expressions/testdata/` of `cucumber_core`) and `cucumber`'s `fixtures/`, which
-  are workspace packages. The archives are 11–85 KB. `cucumber_html_formatter` is 293 KB, because its payload,
+  `cucumber_query`, and `test/tag_expressions/testdata/` of `cucumber_core`) and the `fixtures/` of `cucumber` and
+  `cucumber_flutter`, which are workspace packages. The archives are 11–85 KB. `cucumber_html_formatter` is 293 KB, because its payload,
   `lib/src/assets.g.dart`, is 924 KB uncompressed. `repository` points at each package's directory.
 - **Can wait (not blocking).**
   - The tests that read the left-out data or the fixtures do not run from an archive.
   - `dart pub get` in an extracted `cucumber_core`, `cucumber_html_formatter` or `cucumber` fails until
     `cucumber_compatibility_kit` is published, because of the dev dependency. Their tests only run in this
     repository.
-  - `cucumber`'s example keeps `resolution: workspace`; its README says to remove it outside the repository.
+  - The examples of `cucumber` and `cucumber_flutter` keep `resolution: workspace`; their READMEs say to remove it
+    outside the repository.
 - **Before uploading `cucumber_core`:** choose the uploader (a verified publisher or a personal account) and replace
   `(unreleased)` in its CHANGELOG. Its version (0.0.1) is reported in `meta.implementation`
   (`cucumberCoreVersion`), which a test keeps in step with the pubspec.
@@ -1267,7 +1317,8 @@ Publishing order, dependencies first:
 | Group offsets in Dart | The hosted `cucumber_expressions` only reports root-group offsets (§11). Rewriting regexes to recover offsets must handle quantifiers, alternation, back-references and lookarounds, and must be covered by conformance fixtures and the CCK. |
 | Top-level `log` | Clashes with `dart:math`. Mitigation: `hide log` or a prefix. Could be renamed before 1.0 if it proves annoying. |
 | Undeclared tag warnings | `package:test` warns about tags missing from `dart_test.yaml`. Options: document it, generate the list, or turn mapping off. |
-| Report correlation under `flutter test` | Each test file runs in its own process, so the process id is not shared. `CUCUMBER_RUN_ID` is required there (revisit in M7). |
+| Report correlation under `flutter test` | Each test file runs in its own process, so the process id is not shared. Since M7 the run ID falls back to a hash of `FONTCONFIG_FILE`, which `flutter test` shares with every test process of a run (§8.4, ADR-0021). That is an implementation detail of `flutter_tools`: an end-to-end test catches a change, and `CUCUMBER_RUN_ID` (recommended on CI) does not depend on it. |
+| Flutter test locations | `flutter_test`'s wrappers take no `location`, so IDEs link scenarios under `cucumberWidgets` to the entry file (§6). Needs an upstream change (§12). |
 | Deterministic static IDs | An unusual choice (ADR-0018). It needs validation against the CCK and the HTML formatter. |
 | World type name in snippets | `Type.toString()` can be minified on web and AOT. Snippets are produced in JIT test runs, so this is acceptable. |
 | Publishing | `cucumber` cannot be published to pub.dev until `cucumber_core` and the ported packages it depends on are published (ADR-0005, §14.1). `cucumber_core` is ready; the ports wait for upstream (M10). `cucumber_expressions` is already on pub.dev (ADR-0020). If upstreaming the ports stalls, v1 needs another route, for example inlining them in `cucumber` (an alternative ADR-0005 rejected for now). |

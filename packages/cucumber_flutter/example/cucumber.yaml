@@ -1,0 +1,6 @@
+# Reports of flutter test, merged across the test files of a run.
+default:
+  plugins:
+    - message:build/cucumber/messages.ndjson
+    - html:build/cucumber/report.html
+    - summary

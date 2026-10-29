@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cucumber_core/engine.dart';
 import 'package:test/test.dart';
 
@@ -240,4 +242,29 @@ Feature: f
     expect(runResult.success, isTrue);
     expect(() => plan.runPickle(plan.pickles.last), throwsStateError);
   });
+
+  test(
+    'once started, runPickle only uses the microtasks of its zone',
+    () async {
+      // Like flutter_test's fake-async zone: microtasks scheduled in the zone
+      // only run when the zone flushes them.
+      final queue = <void Function()>[];
+      final zone = Zone.current.fork(
+        specification: ZoneSpecification(
+          scheduleMicrotask: (self, parent, zone, task) => queue.add(task),
+        ),
+      );
+      final plan = _plan();
+      await plan.start();
+      TestCaseResult? result;
+      zone.run(() {
+        plan.runPickle(plan.pickles.first).then((r) => result = r);
+      });
+      while (queue.isNotEmpty) {
+        queue.removeAt(0)();
+      }
+      expect(result?.status, Status.passed);
+      await plan.finish();
+    },
+  );
 }

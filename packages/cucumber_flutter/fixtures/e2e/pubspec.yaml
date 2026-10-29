@@ -1,0 +1,20 @@
+name: cucumber_flutter_e2e
+description: >-
+  Run by test/end_to_end_test.dart: scenarios with every outcome, as widget
+  tests in two entry files.
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  cucumber_flutter:
+    path: ../..
+  flutter_test:
+    sdk: flutter

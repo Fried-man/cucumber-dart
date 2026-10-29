@@ -68,6 +68,7 @@ final class TestCaseRunner {
     required this.snippets,
     this.retry = 0,
     this.dryRun = false,
+    this.afterUserCode,
   }) : _userCode = UserCodeRunner(platform);
 
   /// The glue.
@@ -94,7 +95,20 @@ final class TestCaseRunner {
   /// Whether to skip all user code (design §5.6).
   final bool dryRun;
 
+  /// Called after each step and hook body that returns normally, in the same
+  /// zone and context; if it throws, the step or hook fails with that error
+  /// (see `SuitePlan.create`).
+  final FutureOr<void> Function()? afterUserCode;
+
   final UserCodeRunner _userCode;
+
+  /// Runs [returned] (what a step or hook body returned) to completion, then
+  /// [afterUserCode].
+  Future<void> _complete(Object? returned) async {
+    if (returned is Future<Object?>) await returned;
+    final after = afterUserCode;
+    if (after != null) await after();
+  }
 
   messages.Timestamp _now() => messages.dateTimeToTimestamp(platform.now());
 
@@ -409,8 +423,7 @@ final class TestCaseRunner {
                   ),
           );
         }
-        final returned = Function.apply(body, arguments);
-        if (returned is Future<Object?>) await returned;
+        await _complete(Function.apply(body, arguments));
       },
       context: context,
       timeout: definition.glue.timeout,
@@ -445,11 +458,12 @@ final class TestCaseRunner {
       final body = hook.glue.body;
       final result = await _userCode.run(
         () async {
-          final returned = Function.apply(
-            body,
-            hook.layout == HookLayout.none ? const [] : [testRun],
+          await _complete(
+            Function.apply(
+              body,
+              hook.layout == HookLayout.none ? const [] : [testRun],
+            ),
           );
-          if (returned is Future<Object?>) await returned;
         },
         context: context,
         timeout: hook.glue.timeout,
@@ -486,13 +500,14 @@ final class TestCaseRunner {
     final body = hook.glue.body;
     final result = await _userCode.run(
       () async {
-        final returned = Function.apply(body, switch (hook.layout) {
-          HookLayout.none => const [],
-          HookLayout.world => [world],
-          HookLayout.context => [contextObject],
-          HookLayout.worldAndContext => [world, contextObject],
-        });
-        if (returned is Future<Object?>) await returned;
+        await _complete(
+          Function.apply(body, switch (hook.layout) {
+            HookLayout.none => const [],
+            HookLayout.world => [world],
+            HookLayout.context => [contextObject],
+            HookLayout.worldAndContext => [world, contextObject],
+          }),
+        );
       },
       context: context,
       timeout: hook.glue.timeout,

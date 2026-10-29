@@ -1,6 +1,7 @@
 # cucumber-dart guide
 
-[Cucumber for Dart](../../packages/cucumber/) runs Gherkin `.feature` files as `dart test` tests. This guide is for
+[Cucumber for Dart](../../packages/cucumber/) runs Gherkin `.feature` files as `dart test` tests, and
+[`cucumber_flutter`](../../packages/cucumber_flutter/) runs them as Flutter widget tests. This guide is for
 the people who write those features and their step definitions, and run them locally and on CI.
 
 | Page | What it covers |
@@ -10,6 +11,7 @@ the people who write those features and their step definitions, and run them loc
 | [Configuration](configuration.md) | Every option in code, in `cucumber.yaml` and in `CUCUMBER_*` variables, profiles, how the sources combine, and where features are found |
 | [Reports](reports.md) | The NDJSON, HTML and summary outputs, custom plugins, reports merged across test files, and merging CI shards |
 | [Running with `dart test`](package-test.md) | How features become tests, names, locations, tags, outcomes, filtering, IDEs, timeouts and sharding |
+| [Widget tests with Flutter](flutter.md) | `cucumber_flutter`: features as Flutter widget tests, the `WidgetTester` in the World, Flutter errors, fake time, reports under `flutter test`, and what differs from `dart test` |
 
 More documents:
 
@@ -18,8 +20,9 @@ More documents:
   skipped.
 - [Design](../design.md) and [decision log](../decisions/README.md): how cucumber-dart works and why.
 
-The examples in this guide come from two projects in this repository, which the tests run:
-[`fixtures/getting_started`](../../packages/cucumber/fixtures/getting_started/) for the getting-started page and
+The examples in this guide come from projects in this repository, which the tests run:
+[`fixtures/getting_started`](../../packages/cucumber/fixtures/getting_started/) for the getting-started page,
+[`cucumber_flutter`'s example app](../../packages/cucumber_flutter/example/) for the Flutter page, and
 [`fixtures/guide`](../../packages/cucumber/fixtures/guide/) for the others.
 [`test/docs_test.dart`](../../packages/cucumber/test/docs_test.dart) checks that each code block matches the file it
 comes from, and runs each command shown.

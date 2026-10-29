@@ -346,8 +346,10 @@ final checkoutSteps = <Glue>[
 | `attach(List<int> data)` | The bytes, Base64-encoded | `application/octet-stream`, or `mediaType` |
 | `log(String text)` | A log line | `text/x.cucumber.log+plain` |
 | `link(String url, {String? title})` | A link | `text/uri-list` |
+| `attachFile(String path)` | The file's bytes, Base64-encoded | From the file's extension (`image/png` for `.png`), `application/octet-stream` if it is not known, or `mediaType` |
 
-`fileName` names an attachment in the report. The top-level `attach`, `log` and `link` work anywhere in a step or
+`fileName` names an attachment in the report; for `attachFile` it defaults to the file's name. `attachFile` reads the
+file when it is called, so the file can be deleted afterwards, and a relative path is relative to the package root. The top-level `attach`, `log` and `link` work anywhere in a step or
 hook, including in helper functions, and so do the World's members of the same names, the `Scenario`'s and the
 `TestRun`'s (in test-run hooks). The top-level `log` clashes with `log` from `dart:math`: import
 `dart:math hide log`, or import one of them with a prefix.

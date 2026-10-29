@@ -5,6 +5,7 @@ import 'package:stack_trace/stack_trace.dart';
 const Set<String> internalPackages = {
   'cucumber_core',
   'cucumber',
+  'cucumber_flutter',
   'stack_trace',
 };
 

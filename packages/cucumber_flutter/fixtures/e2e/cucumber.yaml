@@ -1,0 +1,5 @@
+default:
+  plugins:
+    - message:build/cucumber/messages.ndjson
+    - html:build/cucumber/report.html
+    - summary

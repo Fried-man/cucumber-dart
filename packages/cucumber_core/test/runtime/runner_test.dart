@@ -191,6 +191,137 @@ Feature: f
     });
   });
 
+  group('afterUserCode', () {
+    const feature = '''
+Feature: f
+  Scenario: s
+    Given a step
+    And another step
+''';
+
+    test('runs after each step and hook body, in its context', () async {
+      final calls = <String>[];
+      var last = '';
+      await runFeature(
+        feature,
+        [
+          BeforeAll(() => last = 'beforeAll'),
+          Before(() => last = 'before'),
+          BeforeStep(() => last = 'beforeStep'),
+          Given('a step', () async {
+            await Future<void>.delayed(Duration.zero);
+            last = 'step';
+          }),
+          Given('another step', () => last = 'another'),
+          AfterStep(() => last = 'afterStep'),
+          After(() => last = 'after'),
+          AfterAll(() => last = 'afterAll'),
+        ],
+        afterUserCode: () {
+          calls.add(last);
+          // The context of the user code is still current: this attaches
+          // to the step or hook.
+          log('checked $last');
+        },
+      );
+      expect(calls, [
+        'beforeAll',
+        'before',
+        'beforeStep',
+        'step',
+        'afterStep',
+        'beforeStep',
+        'another',
+        'afterStep',
+        'after',
+        'afterAll',
+      ]);
+    });
+
+    test('an error it throws fails the step', () async {
+      var checks = 0;
+      final run = await runFeature(
+        feature,
+        [Given('a step', () {}), Given('another step', () {})],
+        afterUserCode: () {
+          if (++checks == 1) throw StateError('caught by the framework');
+        },
+      );
+      expect(run.statuses.single, [Status.failed, Status.skipped]);
+      final step = run.result.testCases.single.steps.first;
+      expect(step.error, isA<StateError>());
+      expect(
+        run.stepResults.first.message,
+        contains('caught by the framework'),
+      );
+    });
+
+    test('an asynchronous error fails a hook, folded into the step', () async {
+      var inHook = false;
+      final run = await runFeature(
+        feature,
+        [
+          Given('a step', () {}),
+          Given('another step', () {}),
+          AfterStep(() => inHook = true),
+        ],
+        afterUserCode: () async {
+          await Future<void>.delayed(Duration.zero);
+          if (inHook) {
+            inHook = false;
+            throw StateError('in a hook');
+          }
+        },
+      );
+      expect(run.statuses.single, [Status.failed, Status.skipped]);
+      expect(
+        run.result.testCases.single.steps.first.error,
+        isA<StateError>().having((e) => e.message, 'message', 'in a hook'),
+      );
+    });
+
+    test('fails test-run hooks', () async {
+      var inBeforeAll = false;
+      final run = await runFeature(
+        feature,
+        [
+          BeforeAll(() => inBeforeAll = true),
+          Given('a step', () {}),
+          Given('another step', () {}),
+        ],
+        afterUserCode: () {
+          if (inBeforeAll) throw StateError('in BeforeAll');
+        },
+      );
+      expect(run.result.hooks.single.status, Status.failed);
+      expect(run.result.testCases, isEmpty);
+      expect(run.result.success, isFalse);
+    });
+
+    test('is not called when the body throws, or in a dry run', () async {
+      var checks = 0;
+      final run = await runFeature(feature, [
+        Given('a step', () => throw StateError('step')),
+        Given('another step', () {}),
+        After(() => pending()),
+      ], afterUserCode: () => checks++);
+      expect(run.statuses.single, [
+        Status.failed,
+        Status.skipped,
+        Status.pending,
+      ]);
+      expect(checks, 0);
+
+      await runFeature(
+        feature,
+        [Given('a step', () {}), Given('another step', () {})],
+        options: const RunOptions(dryRun: true),
+        afterUserCode: () => checks++,
+      );
+      expect(checks, 0);
+    });
+  });
+
   group('World', () {
     test('a new World is created for every attempt', () async {
       final worlds = <CountingWorld>[];

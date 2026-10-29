@@ -116,3 +116,6 @@ dart test --total-shards 2 --shard-index 1
 
 Coverage works as for other tests: `dart test --coverage=coverage` collects the coverage of the code that the steps
 call.
+
+Flutter widget tests run under `flutter test` instead, with each test file in its own process
+([Widget tests with Flutter](flutter.md)).

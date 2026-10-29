@@ -1,0 +1,38 @@
+name: cucumber_flutter
+description: >-
+  Cucumber for Flutter: run Gherkin features as Flutter widget tests, with a
+  WidgetTester in the World and Cucumber Messages reports.
+version: 0.0.1
+repository: https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber_flutter
+issue_tracker: https://github.com/Fried-man/cucumber-dart/issues
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
+
+workspace:
+  - example
+  - fixtures/e2e
+
+dependencies:
+  cucumber:
+    path: ../cucumber
+  flutter:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+
+dev_dependencies:
+  lints: ^6.0.0
+  path: ^1.9.0
+
+dependency_overrides:
+  cucumber_ci_environment:
+    path: ../cucumber_ci_environment
+  cucumber_core:
+    path: ../cucumber_core
+  cucumber_html_formatter:
+    path: ../cucumber_html_formatter
+  cucumber_query:
+    path: ../cucumber_query

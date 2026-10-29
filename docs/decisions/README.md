@@ -26,6 +26,7 @@ decision itself, its consequences, and the alternatives we considered. The overa
 | [0018](0018-message-ids.md) | Deterministic IDs for static messages | Proposed |
 | [0019](0019-compatibility-kit-conformance.md) | Compatibility kit conformance strategy | Proposed |
 | [0020](0020-hosted-cucumber-expressions.md) | Use the hosted `cucumber_expressions` package | Accepted |
+| [0021](0021-flutter-widget-test-host.md) | Flutter widget-test host outside the pub workspace, built on the `dart test` host | Accepted |
 
 ## Template
 

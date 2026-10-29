@@ -9,10 +9,12 @@
 //       comments. Region comments are left out, and so is the region's common
 //       indentation.
 //   <!-- run in: <directory> -->
-//       Each line is a `dart` command, optionally preceded by NAME=value
-//       environment variables, that is run in <directory>. It must succeed,
-//       unless its comment says that it "fails". `dart test` runs with the
-//       expanded reporter, whose output does not depend on the terminal or CI.
+//       Each line is a `dart` or `flutter` command, optionally preceded by
+//       NAME=value environment variables, that is run in <directory>. It must
+//       succeed, unless its comment says that it "fails". `dart test` and
+//       `flutter test` run with the expanded reporter, whose output does not
+//       depend on the terminal or CI. Documents with `flutter` commands are
+//       only run when the Flutter SDK is on the PATH (the flutter CI job).
 //   <!-- output -->
 //       Each line appears, in order, in an output line of the last command
 //       run before the block.
@@ -91,11 +93,20 @@ void main() {
         }
       });
 
-      if (CodeBlock.parse(document).any((b) => b.marker == 'run in')) {
+      final commands = [
+        for (final block in CodeBlock.parse(document))
+          if (block.marker == 'run in')
+            for (final line in block.lines)
+              if (line.trim().isNotEmpty) _Command.parse(line),
+      ];
+      if (commands.isNotEmpty) {
         test(
           'commands run as shown',
           () => _runCommands(document, blocks),
           timeout: const Timeout(Duration(minutes: 10)),
+          skip: commands.any((c) => c.executable == 'flutter') && !_hasFlutter
+              ? 'Needs the Flutter SDK on the PATH (the flutter CI job runs it).'
+              : null,
         );
       }
     });
@@ -104,6 +115,7 @@ void main() {
   group('checked blocks', () {
     final checks = <String, void Function(CodeBlock block)>{
       'install': _checkInstall,
+      'flutter-install': _checkFlutterInstall,
       'workflow': _checkWorkflow,
     };
     final checked = [
@@ -183,6 +195,7 @@ void main() {
             File(p.join(entity.path, 'README.md')).existsSync())
           p.relative(p.join(entity.path, 'README.md'), from: repositoryRoot),
       'packages/cucumber/example/README.md',
+      'packages/cucumber_flutter/example/README.md',
     ];
     final broken = <String>[];
     var checked = 0;
@@ -346,11 +359,29 @@ void _updateExcerpts(String document, List<CodeBlock> blocks) {
 // Commands
 // ---------------------------------------------------------------------------
 
+/// Whether the Flutter SDK's `flutter` command is on the PATH.
+final bool _hasFlutter = () {
+  final names = Platform.isWindows
+      ? ['flutter.bat', 'flutter.exe']
+      : ['flutter'];
+  final path = Platform.environment['PATH'] ?? '';
+  return path
+      .split(Platform.isWindows ? ';' : ':')
+      .where((directory) => directory.isNotEmpty)
+      .any((d) => names.any((n) => File(p.join(d, n)).existsSync()));
+}();
+
 /// A command line of a `run in:` block.
 final class _Command {
-  _Command(this.text, this.environment, this.arguments, {required this.fails});
+  _Command(
+    this.text,
+    this.environment,
+    this.executable,
+    this.arguments, {
+    required this.fails,
+  });
 
-  /// Parses [line]: `[NAME=value ...] dart <arguments> [# comment]`.
+  /// Parses [line]: `[NAME=value ...] (dart|flutter) <arguments> [# comment]`.
   factory _Command.parse(String line) {
     final words = <String>[];
     final word = StringBuffer();
@@ -390,12 +421,13 @@ final class _Command {
         equals + 1,
       );
     }
-    if (words.isEmpty || words.first != 'dart') {
-      throw FormatException('Not a dart command: $line');
+    if (words.isEmpty || (words.first != 'dart' && words.first != 'flutter')) {
+      throw FormatException('Not a dart or flutter command: $line');
     }
     return _Command(
       line.trim(),
       environment,
+      words.first,
       words.sublist(1),
       fails: comment.contains('fails'),
     );
@@ -403,10 +435,14 @@ final class _Command {
 
   final String text;
   final Map<String, String> environment;
+
+  /// `dart` or `flutter`.
+  final String executable;
   final List<String> arguments;
   final bool fails;
 
-  /// The arguments to run: `dart test` gets the expanded reporter.
+  /// The arguments to run: `dart test` and `flutter test` get the expanded
+  /// reporter.
   List<String> get processArguments =>
       arguments.isNotEmpty &&
           arguments.first == 'test' &&
@@ -430,10 +466,12 @@ Future<void> _runCommands(String document, List<CodeBlock> blocks) async {
         for (final line in block.lines) {
           if (line.trim().isEmpty) continue;
           final command = _Command.parse(line);
+          final flutter = command.executable == 'flutter';
           final result = await Process.run(
-            Platform.resolvedExecutable,
+            flutter ? 'flutter' : Platform.resolvedExecutable,
             command.processArguments,
             workingDirectory: directory,
+            runInShell: flutter && Platform.isWindows,
             environment: {
               for (final key in Platform.environment.keys)
                 if (key.toUpperCase().startsWith('CUCUMBER_')) key: '',
@@ -528,6 +566,40 @@ void _checkInstall(CodeBlock block) {
   expect(overrides.keys.toSet(), {
     for (final name in (cucumber['dependencies'] as YamlMap).keys)
       if (workspacePackages.contains(name)) name,
+  });
+  for (final MapEntry(:key, :value) in overrides.entries) {
+    expectGit('$key', value);
+  }
+}
+
+/// The Flutter install snippet depends on `cucumber_flutter` from this
+/// repository and on `flutter_test`, and overrides `cucumber` and the
+/// workspace packages that `cucumber` depends on, from this repository: the
+/// overrides of `cucumber_flutter`'s own pubspec plus `cucumber`, which it
+/// depends on by path.
+void _checkFlutterInstall(CodeBlock block) {
+  final snippet = loadYaml(block.text) as YamlMap;
+  final flutter = _pubspec('cucumber_flutter');
+  final repository = '${flutter['repository']}';
+  final url = repository.substring(0, repository.indexOf('/tree/'));
+
+  void expectGit(String name, Object? dependency) {
+    expect(dependency, isA<YamlMap>(), reason: name);
+    final git = (dependency! as YamlMap)['git'] as YamlMap;
+    expect(git['url'], url, reason: name);
+    expect(git['path'], 'packages/$name', reason: name);
+    expect(_pubspec(name)['name'], name);
+  }
+
+  final devDependencies = snippet['dev_dependencies'] as YamlMap;
+  expectGit('cucumber_flutter', devDependencies['cucumber_flutter']);
+  expect(devDependencies['flutter_test'], {'sdk': 'flutter'});
+  final overrides = snippet['dependency_overrides'] as YamlMap;
+  final dependencies = flutter['dependencies'] as YamlMap;
+  expect(overrides.keys.toSet(), {
+    for (final MapEntry(:key, :value) in dependencies.entries)
+      if (value is YamlMap && value.containsKey('path')) key,
+    ...(flutter['dependency_overrides'] as YamlMap).keys,
   });
   for (final MapEntry(:key, :value) in overrides.entries) {
     expectGit('$key', value);

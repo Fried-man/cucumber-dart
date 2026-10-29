@@ -1,0 +1,18 @@
+name: cucumber_flutter_example
+description: A to-do app whose features run as widget tests with cucumber_flutter.
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  cucumber_flutter:
+    path: ..
+  flutter_test:
+    sdk: flutter

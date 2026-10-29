@@ -95,6 +95,12 @@ final class SuitePlan {
   /// - [platform] supplies the clock and `meta` facts.
   /// - [ids] allocates message IDs (default: deterministic static IDs and
   ///   random dynamic ones, ADR-0018).
+  /// - [afterUserCode] is called after each step and hook body (scenario,
+  ///   step and test-run hooks) that returns normally, in the same guarded
+  ///   zone and context. If it throws, that step or hook fails with the
+  ///   error, as if the body had thrown it. Hosts use it to surface errors
+  ///   that their framework catches outside the user code's zone, such as
+  ///   the exceptions Flutter reports during a widget test.
   ///
   /// Throws a `GlueException` for invalid glue and an [ArgumentError] for
   /// invalid options.
@@ -106,6 +112,7 @@ final class SuitePlan {
     List<Plugin> plugins = const [],
     CucumberPlatform platform = const CucumberPlatform(),
     IdScheme? ids,
+    FutureOr<void> Function()? afterUserCode,
   }) {
     if (world == null) {
       return _create<DefaultWorld>(
@@ -116,6 +123,7 @@ final class SuitePlan {
         plugins,
         platform,
         ids ?? IdScheme.deterministic(),
+        afterUserCode,
       );
     }
     return _create<W>(
@@ -126,6 +134,7 @@ final class SuitePlan {
       plugins,
       platform,
       ids ?? IdScheme.deterministic(),
+      afterUserCode,
     );
   }
 
@@ -137,6 +146,7 @@ final class SuitePlan {
     List<Plugin> plugins,
     CucumberPlatform platform,
     IdScheme ids,
+    FutureOr<void> Function()? afterUserCode,
   ) {
     if (options.retry < 0) {
       throw ArgumentError.value(options.retry, 'retry', 'Must not be negative');
@@ -180,6 +190,7 @@ final class SuitePlan {
       ),
       retry: options.retry,
       dryRun: options.dryRun,
+      afterUserCode: afterUserCode,
     );
     return SuitePlan._(
       children: List.unmodifiable([...parseErrors, ...buildPlanTree(ordered)]),
@@ -219,6 +230,7 @@ final class SuitePlan {
   final TestCaseAssembler _assembler;
 
   Future<void>? _starting;
+  bool _started = false;
   String? _testRunStartedId;
   late final TestRunImpl _testRun = TestRunImpl(
     deepCopy(options.worldParameters)! as Map<String, Object?>,
@@ -269,13 +281,21 @@ final class SuitePlan {
       _beforeAllFailed = true;
     }
     if (_beforeAllFailed) _success = false;
+    _started = true;
   }
 
   /// Runs [node] (starting the run first if needed) and returns its result.
   ///
   /// If a `BeforeAll` hook failed, nothing runs and the result says why.
+  ///
+  /// Once the run has started, this only uses futures and microtasks of the
+  /// zone it is called in. Test frameworks that run tests in a zone with its
+  /// own microtask queue (such as `flutter_test`'s fake-async zone, which
+  /// only flushes its own queue) can call it from there.
   Future<TestCaseResult> runPickle(PickleNode node) async {
-    await start();
+    // Awaiting the future of start(), which was created in another zone,
+    // would continue in that zone's microtask queue.
+    if (!_started) await start();
     if (_finishing != null) {
       throw StateError('The run has finished.');
     }

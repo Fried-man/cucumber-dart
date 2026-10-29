@@ -74,7 +74,8 @@
 /// - [World] is an optional base class for the World, which is created for
 ///   every scenario attempt. Without a `world` factory, a [DefaultWorld] is
 ///   used.
-/// - [attach], [log] and [link] add attachments to the report.
+/// - [attach], [log] and [link] add attachments to the report, and [attachFile]
+///   attaches a file.
 /// - [pending] and [skip] mark a step as pending or skipped. Any other
 ///   exception, including a failed `expect`, fails it. [Status] lists the
 ///   results.
@@ -108,6 +109,7 @@ library;
 
 export 'package:cucumber_core/cucumber_core.dart';
 
+export 'src/attachments.dart' show attachFile;
 export 'src/configuration.dart' show CucumberConfigurationException;
 export 'src/merge.dart' show ReportPart, mergeReportParts;
 export 'src/options.dart' show CucumberOptions;

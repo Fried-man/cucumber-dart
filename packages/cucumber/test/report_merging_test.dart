@@ -446,6 +446,34 @@ void main() {
       expect(resolveRunId(const {}), '$pid');
     });
 
+    test('resolveRunId under flutter test hashes FONTCONFIG_FILE', () {
+      const run1 = {
+        'FLUTTER_TEST': 'true',
+        'FONTCONFIG_FILE':
+            '/tmp/flutter_tools.1/flutter_test_fonts.a/fonts.conf',
+      };
+      const run2 = {
+        'FLUTTER_TEST': 'true',
+        'FONTCONFIG_FILE':
+            '/tmp/flutter_tools.2/flutter_test_fonts.b/fonts.conf',
+      };
+      final id = resolveRunId(run1, processId: 7);
+      expect(id, matches(RegExp(r'^flutter-[0-9a-f]{8}$')));
+      // The same for every test process of one run, whatever its process ID.
+      expect(resolveRunId(run1, processId: 8), id);
+      expect(resolveRunId(run2, processId: 7), isNot(id));
+      // CUCUMBER_RUN_ID still wins.
+      expect(resolveRunId({...run1, 'CUCUMBER_RUN_ID': 'ci'}), 'ci');
+      // Without FLUTTER_TEST (or a font configuration), the process ID.
+      expect(
+        resolveRunId({
+          'FONTCONFIG_FILE': run1['FONTCONFIG_FILE']!,
+        }, processId: 7),
+        '7',
+      );
+      expect(resolveRunId({'FLUTTER_TEST': 'true'}, processId: 7), '7');
+    });
+
     test('testFileSuiteId names the test file whose main declares the '
         'suite', () {
       final packageRoot = p.join(root.path, 'pkg');

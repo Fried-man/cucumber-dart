@@ -1,19 +1,22 @@
 # cucumber-dart
 
-Cucumber for Dart: run Gherkin `.feature` files as `dart test` tests, with Cucumber Expressions, hooks, typed data
-tables and doc strings, and [Cucumber Messages](https://github.com/cucumber/messages) reports (NDJSON, HTML and a
-console summary). 47 of the 49 [Cucumber Compatibility Kit](https://github.com/cucumber/compatibility-kit) samples
-pass ([compatibility report](docs/compatibility.md)).
+Cucumber for Dart: run Gherkin `.feature` files as `dart test` tests or Flutter widget tests, with Cucumber
+Expressions, hooks, typed data tables and doc strings, and [Cucumber Messages](https://github.com/cucumber/messages)
+reports (NDJSON, HTML and a console summary). 47 of the 49
+[Cucumber Compatibility Kit](https://github.com/cucumber/compatibility-kit) samples pass
+([compatibility report](docs/compatibility.md)).
 
 **Start with the [guide](docs/guide/README.md)**: [getting started](docs/guide/getting-started.md),
 [writing glue](docs/guide/writing-glue.md), [configuration](docs/guide/configuration.md),
-[reports](docs/guide/reports.md) and [running with `dart test`](docs/guide/package-test.md).
+[reports](docs/guide/reports.md), [running with `dart test`](docs/guide/package-test.md) and
+[widget tests with Flutter](docs/guide/flutter.md).
 
 ## Packages
 
 | Package | What it is |
 |---|---|
 | [`cucumber`](packages/cucumber/) | What test suites depend on: the `dart test` host, configuration, reports and the merge CLI |
+| [`cucumber_flutter`](packages/cucumber_flutter/) | What Flutter widget-test suites depend on: features as `testWidgets` tests, with the `WidgetTester` in the World |
 | [`cucumber_core`](packages/cucumber_core/) | The runner-agnostic engine and glue API, for building other hosts |
 | [`cucumber_query`](packages/cucumber_query/) | A port of [cucumber/query](https://github.com/cucumber/query) |
 | [`cucumber_html_formatter`](packages/cucumber_html_formatter/) | The HTML report of [cucumber/html-formatter](https://github.com/cucumber/html-formatter) |

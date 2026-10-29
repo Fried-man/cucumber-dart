@@ -167,6 +167,9 @@ dart run cucumber:merge -p html:build/cucumber/report.html shard-1/ shard-2/
 - [Compatibility report][compatibility]: every Cucumber Compatibility Kit sample, its result and the skip list
 - [`cucumber_core`](https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber_core): the
   runner-agnostic engine that this package re-exports
+- [`cucumber_flutter`](https://github.com/Fried-man/cucumber-dart/tree/main/packages/cucumber_flutter): the same
+  features as Flutter widget tests, built on this package
+  ([guide](https://github.com/Fried-man/cucumber-dart/blob/main/docs/guide/flutter.md))
 
 [messages]: https://github.com/cucumber/messages
 [gherkin]: https://github.com/cucumber/gherkin

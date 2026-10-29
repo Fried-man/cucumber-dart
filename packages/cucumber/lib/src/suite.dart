@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cucumber_core/engine.dart';
@@ -99,56 +100,75 @@ final class CucumberSuite<W extends Object> {
   /// Invalid glue throws a `GlueException`, and an invalid configuration
   /// throws a [CucumberConfigurationException], so `dart test` reports a
   /// load failure for the test file.
-  void declare() {
-    final glue = options.glue;
-    if (glue == null) {
-      throw CucumberConfigurationException(
-        'No glue: pass the step definitions and hooks with CucumberOptions(glue: ...).',
-      );
-    }
-    final world = options.world;
-    if (world != null && world is! W Function()) {
-      throw CucumberConfigurationException(
-        'The world factory (${world.runtimeType}) does not create a $W. Use '
-        'CucumberSuite<YourWorld>(options).',
-      );
-    }
+  void declare() => declareCucumberSuite<W>(options);
+}
 
-    final packageRoot = findPackageRoot(Directory.current.path);
-    final platform = IoCucumberPlatform();
-    final config = resolveConfiguration(
-      options,
-      packageRoot: packageRoot,
-      environment: platform.environment,
+/// Declares a suite with [options] like [CucumberSuite.declare], for hosts
+/// built on the `dart test` host (such as `cucumber_flutter`):
+///
+/// - [defaultWorld] creates the World when [options] has no `world`
+///   (default: a `DefaultWorld`);
+/// - [declareScenario] declares the test of each scenario (default:
+///   `package:test`'s `test`);
+/// - [afterUserCode] is passed to `SuitePlan.create`: it runs after each
+///   step and hook body, and an error it throws fails that step or hook.
+///
+/// Everything else (configuration, discovery, groups, `setUpAll` and
+/// `tearDownAll`, outcomes and reports) is the same as for
+/// [CucumberSuite.declare].
+void declareCucumberSuite<W extends Object>(
+  CucumberOptions options, {
+  W Function()? defaultWorld,
+  ScenarioTestDeclarer declareScenario = declarePackageTest,
+  FutureOr<void> Function()? afterUserCode,
+}) {
+  final glue = options.glue;
+  if (glue == null) {
+    throw CucumberConfigurationException(
+      'No glue: pass the step definitions and hooks with CucumberOptions(glue: ...).',
     );
-    final features = discoverFeatures(
-      config.features,
-      packageRoot: packageRoot,
-    );
-    final suiteName = config.suiteName?.trim() ?? '';
-    final merging = ReportMerging(
-      outputDirectory: p.join(packageRoot, outputDirectoryName),
-      runId: resolveRunId(platform.environment),
-      suiteId: suiteName.isNotEmpty ? suiteName : testFileSuiteId(packageRoot),
-    );
-    final plan = SuitePlan.create<W>(
-      features: features.sources,
-      glue: glue,
-      world: world as W Function()?,
-      options: config.toRunOptions(lines: features.lines),
-      plugins: createPlugins(
-        config.plugins,
-        packageRoot: packageRoot,
-        merging: merging,
-      ),
-      platform: platform,
-    );
-    PackageTestHost(
-      packageRoot: packageRoot,
-      mapTags: config.mapTags,
-      scenarioTimeout: config.scenarioTimeout,
-    ).declare(plan);
   }
+  final world = options.world ?? defaultWorld;
+  if (world != null && world is! W Function()) {
+    throw CucumberConfigurationException(
+      'The world factory (${world.runtimeType}) does not create a $W. Use '
+      'CucumberSuite<YourWorld>(options).',
+    );
+  }
+
+  final packageRoot = findPackageRoot(Directory.current.path);
+  final platform = IoCucumberPlatform();
+  final config = resolveConfiguration(
+    options,
+    packageRoot: packageRoot,
+    environment: platform.environment,
+  );
+  final features = discoverFeatures(config.features, packageRoot: packageRoot);
+  final suiteName = config.suiteName?.trim() ?? '';
+  final merging = ReportMerging(
+    outputDirectory: p.join(packageRoot, outputDirectoryName),
+    runId: resolveRunId(platform.environment),
+    suiteId: suiteName.isNotEmpty ? suiteName : testFileSuiteId(packageRoot),
+  );
+  final plan = SuitePlan.create<W>(
+    features: features.sources,
+    glue: glue,
+    world: world as W Function()?,
+    options: config.toRunOptions(lines: features.lines),
+    plugins: createPlugins(
+      config.plugins,
+      packageRoot: packageRoot,
+      merging: merging,
+    ),
+    platform: platform,
+    afterUserCode: afterUserCode,
+  );
+  PackageTestHost(
+    packageRoot: packageRoot,
+    mapTags: config.mapTags,
+    scenarioTimeout: config.scenarioTimeout,
+    declareScenario: declareScenario,
+  ).declare(plan);
 }
 
 /// The package root for [directory]: the closest directory at or above it

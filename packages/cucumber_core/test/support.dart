@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cucumber_core/engine.dart';
 import 'package:cucumber_messages/cucumber_messages.dart' as messages;
 
@@ -33,11 +35,13 @@ Future<Run> runFeature<W extends Object>(
   W Function()? world,
   RunOptions options = const RunOptions(),
   String uri = 'features/test.feature',
+  FutureOr<void> Function()? afterUserCode,
 }) => runFeatures(
   [FeatureSource(uri, gherkin)],
   glue,
   world: world,
   options: options,
+  afterUserCode: afterUserCode,
 );
 
 /// Plans and runs [features] with [glue].
@@ -46,6 +50,7 @@ Future<Run> runFeatures<W extends Object>(
   List<Glue> glue, {
   W Function()? world,
   RunOptions options = const RunOptions(),
+  FutureOr<void> Function()? afterUserCode,
 }) async {
   final collector = CollectingPlugin();
   final plan = SuitePlan.create<W>(
@@ -55,6 +60,7 @@ Future<Run> runFeatures<W extends Object>(
     options: options,
     plugins: [collector],
     ids: IdScheme.incrementing(),
+    afterUserCode: afterUserCode,
   );
   final result = await const SerialHost().run(plan);
   return Run(result, collector.envelopes);

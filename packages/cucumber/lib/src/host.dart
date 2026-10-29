@@ -17,12 +17,14 @@ import 'package:test/test.dart';
 /// - Each test runs its pickle and reports the final attempt: PASSED passes,
 ///   SKIPPED is marked skipped, PENDING, UNDEFINED and AMBIGUOUS fail with a
 ///   [TestFailure], and FAILED rethrows the original error.
+/// - [declareScenario] declares the scenarios' tests (default: [test]).
 final class PackageTestHost implements TestHost {
   /// Creates a host for features below [packageRoot].
   const PackageTestHost({
     required this.packageRoot,
     this.mapTags = true,
     this.scenarioTimeout,
+    this.declareScenario = declarePackageTest,
   });
 
   /// The directory feature URIs are relative to.
@@ -34,6 +36,9 @@ final class PackageTestHost implements TestHost {
   /// The timeout of one scenario attempt; the test timeout is this times the
   /// number of attempts.
   final Timeout? scenarioTimeout;
+
+  /// Declares the test of each scenario (and example row).
+  final ScenarioTestDeclarer declareScenario;
 
   @override
   void declare(SuitePlan plan) {
@@ -90,15 +95,15 @@ final class PackageTestHost implements TestHost {
         });
       case PickleNode():
         final tags = mapTags ? testTags(node.tags) : const <String>[];
-        test(
+        declareScenario(
           node.displayName,
-          location: location,
-          tags: tags.isEmpty ? null : tags,
-          timeout: timeout,
           () async {
             final result = await plan.runPickle(node);
             reportResult(result, testRunHooks: plan.hookResults);
           },
+          location: location,
+          tags: tags.isEmpty ? null : tags,
+          timeout: timeout,
         );
     }
   }
@@ -113,6 +118,32 @@ final class PackageTestHost implements TestHost {
     );
   }
 }
+
+/// Declares the test of one scenario or example row in the current
+/// `package:test` group: [name] is its name, and [body] runs the scenario
+/// and reports its result (failing the test when the scenario fails).
+///
+/// [location] is the scenario's line in its feature file, [tags] its
+/// Gherkin tags as `package:test` tags (`null` for none) and [timeout] the
+/// timeout for all of its attempts.
+typedef ScenarioTestDeclarer =
+    void Function(
+      String name,
+      Future<void> Function() body, {
+      required TestLocation location,
+      List<String>? tags,
+      Timeout? timeout,
+    });
+
+/// Declares a scenario's test with `package:test`'s [test]: the default
+/// [ScenarioTestDeclarer].
+void declarePackageTest(
+  String name,
+  Future<void> Function() body, {
+  required TestLocation location,
+  List<String>? tags,
+  Timeout? timeout,
+}) => test(name, body, location: location, tags: tags, timeout: timeout);
 
 /// Matches the tags `package:test` accepts: (optionally hyphenated) Dart
 /// identifiers.
@@ -253,6 +284,8 @@ String _describeStep(StepResult step) =>
 const Set<String> _internalPackages = {
   'cucumber',
   'cucumber_core',
+  'cucumber_flutter',
+  'flutter_test',
   'matcher',
   'stack_trace',
   'test',
@@ -260,8 +293,8 @@ const Set<String> _internalPackages = {
   'test_core',
 };
 
-/// [stackTrace] without frames from the SDK, the cucumber packages and
-/// `package:test`.
+/// [stackTrace] without frames from the SDK, the cucumber packages,
+/// `package:test` and `package:flutter_test`.
 String _userFrames(StackTrace stackTrace) {
   try {
     final frames = Trace.from(

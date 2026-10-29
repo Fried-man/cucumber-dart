@@ -52,6 +52,12 @@ jobs:
         run: |
           status=0
           for package in packages/*/; do
+            # Flutter packages are outside the pub workspace; the flutter job
+            # tests them.
+            if grep -q 'sdk: flutter' "${package}pubspec.yaml"; then
+              echo "Skipping ${package} (see the flutter job)"
+              continue
+            fi
             if [ -d "${package}test" ]; then
               echo "::group::${package}"
               (cd "${package}" && dart test) || status=1
@@ -59,6 +65,65 @@ jobs:
             fi
           done
           exit $status
+
+  # cucumber_flutter is a Flutter package outside the pub workspace (with its
+  # example and fixtures in a pub workspace of its own), so the jobs above,
+  # which use a plain Dart SDK, exclude it (docs/decisions/0021). Formatting is
+  # still checked by the test job. Flutter 3.44 is the minimum: earlier
+  # releases pin a test_api that package:cucumber's test dependency rejects.
+  flutter:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: "3.44.1"
+
+      - name: Install dependencies
+        run: |
+          dart pub get
+          (cd packages/cucumber_flutter && flutter pub get)
+
+      - name: Analyze cucumber_flutter
+        working-directory: packages/cucumber_flutter
+        run: dart analyze --fatal-infos
+
+      - name: Test cucumber_flutter (including its example and fixtures)
+        working-directory: packages/cucumber_flutter
+        run: flutter test
+
+      - name: Check the Flutter guide page (runs its flutter commands)
+        working-directory: packages/cucumber
+        run: dart test test/docs_test.dart --name 'docs/guide/flutter.md'
+
+      - name: Check library docs of cucumber_flutter
+        working-directory: packages/cucumber_flutter
+        shell: bash
+        run: |
+          status=0
+          for library in lib/*.dart; do
+            docs=$(sed -n '/^library;/q;p' "$library")
+            if ! grep -q '^library;' "$library" ||
+              ! grep -q '^///' <<<"$docs" ||
+              ! grep -q '^/// ```dart' <<<"$docs"; then
+              echo "::error file=packages/cucumber_flutter/$library::needs a library doc comment with a Dart example before 'library;'"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Generate API docs for cucumber_flutter
+        working-directory: packages/cucumber_flutter
+        shell: bash
+        run: |
+          dart doc --validate-links --output "$RUNNER_TEMP/api" 2>&1 | tee "$RUNNER_TEMP/dart-doc.log"
+          grep -q '^Found 0 warnings and 0 errors\.$' "$RUNNER_TEMP/dart-doc.log"
 
   compatibility-kit-samples:
     runs-on: ubuntu-latest
